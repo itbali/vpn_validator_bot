@@ -3,6 +3,8 @@ FROM python:3.12-slim
 # Установка необходимых системных пакетов
 RUN apt-get update && apt-get install -y \
     gcc \
+    python3-dev \
+    libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # Создание рабочей директории
@@ -12,7 +14,8 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Установка зависимостей
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip install --no-cache-dir psycopg2-binary
 
 # Копирование исходного кода
 COPY . .
