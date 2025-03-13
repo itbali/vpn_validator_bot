@@ -28,10 +28,22 @@ jobs:
           SERVER_IP: ${{ secrets.SERVER_IP }}
           SERVER_USER: ${{ secrets.SERVER_USER }}
           DEPLOY_PATH: /opt/vpn_validator_bot
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
         run: |
           # Копируем файлы на сервер
           ssh $SERVER_USER@$SERVER_IP "mkdir -p $DEPLOY_PATH"
           scp -r ./* $SERVER_USER@$SERVER_IP:$DEPLOY_PATH/
+          
+          # Создаем файл .env на сервере
+          ssh $SERVER_USER@$SERVER_IP "cat > $DEPLOY_PATH/.env << 'EOL'
+          BOT_TOKEN=${BOT_TOKEN}
+          ADMIN_IDS=${ADMIN_IDS}
+          CHANNEL_ID=${CHANNEL_ID}
+          DATABASE_URL=${DATABASE_URL}
+          EOL"
           
           # Запускаем развертывание на сервере
           ssh $SERVER_USER@$SERVER_IP "cd $DEPLOY_PATH && \
