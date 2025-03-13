@@ -9,4 +9,20 @@ services:
       - ./data:/app/data
       - ./logs:/opt/vpn_bot
     env_file:
-      - .env 
+      - .env
+    depends_on:
+      - db
+
+  db:
+    image: postgres:15-alpine
+    container_name: vpn_bot_db
+    restart: always
+    environment:
+      POSTGRES_USER: vpn_bot
+      POSTGRES_PASSWORD: vpn_bot_secure_123
+      POSTGRES_DB: vpn_bot_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data: 
