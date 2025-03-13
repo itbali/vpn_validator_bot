@@ -4,6 +4,7 @@ __pycache__/
 *$py.class
 *.so
 .Python
+env/
 build/
 develop-eggs/
 dist/
@@ -23,8 +24,6 @@ wheels/
 # Virtual Environment
 venv/
 ENV/
-env/
-.env
 
 # IDE
 .idea/
@@ -33,8 +32,23 @@ env/
 *.swo
 
 # Logs
+logs/
 *.log
-bot.log
+
+# Database
+*.db
+*.sqlite3
+
+# Environment variables
+.env
+
+# Docker
+.docker/
+
+# Project specific
+data/
+temp_*
+vpn_bot.tar.gz
 
 # OS
 .DS_Store

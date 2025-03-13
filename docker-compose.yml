@@ -1,0 +1,12 @@
+version: '3.8'
+
+services:
+  vpn_bot:
+    build: .
+    container_name: vpn_validator_bot
+    restart: always
+    volumes:
+      - ./data:/app/data
+      - ./logs:/opt/vpn_bot
+    env_file:
+      - .env 

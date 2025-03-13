@@ -3,8 +3,15 @@ import asyncio
 from datetime import datetime
 from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import Application, CommandHandler, ContextTypes, CallbackContext, CallbackQueryHandler, MessageHandler, filters, ConversationHandler
-from config import BOT_TOKEN, CHANNEL_ID
-from outline_api import OutlineVPN
+from config.settings import BOT_TOKEN, CHANNEL_ID, ADMIN_IDS, CHECK_MEMBERSHIP_INTERVAL
+from src.vpn.outline_api import OutlineVPN
+from src.monitoring.metrics import MetricsCollector
+from src.bot.handlers.metrics_handler import stats_command, handle_stats_callback
+from src.database.operations import (
+    init_db, get_db, create_user, get_user, update_user_activity,
+    create_vpn_key, get_vpn_key, update_vpn_key_usage, deactivate_vpn_key,
+    log_user_action
+)
 
 # VPN Instructions
 VPN_INSTRUCTIONS = """
@@ -212,33 +219,81 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
         return
 
-    # Check if user already has a key
-    existing_key = find_user_key(user)
-    if existing_key:
-        await update.message.reply_text(
-            VPN_INSTRUCTIONS + f"\n`{existing_key['accessUrl']}`",
-            parse_mode='Markdown',
-            disable_web_page_preview=True,
-            reply_markup=START_KEYBOARD
-        )
-        return
+    # Инициализируем сессию базы данных
+    db = next(get_db())
+    
+    try:
+        # Получаем или создаем пользователя
+        db_user = get_user(db, user.id)
+        if not db_user:
+            db_user = create_user(
+                db,
+                telegram_id=user.id,
+                username=user.username or "",
+                full_name=user.full_name,
+                is_admin=user.id in ADMIN_IDS
+            )
+        
+        # Обновляем активность пользователя
+        update_user_activity(db, user.id)
 
-    # Create new VPN access for the user
-    vpn_key = vpn.create_access_key(user_identifier)
-    if vpn_key:
-        await update.message.reply_text(
-            VPN_INSTRUCTIONS + f"\n`{vpn_key['accessUrl']}`",
-            parse_mode='Markdown',
-            disable_web_page_preview=True,
-            reply_markup=START_KEYBOARD
-        )
-    else:
-        logger.error(f"Failed to create VPN access for user {user_identifier}")
-        await update.message.reply_text(
-            "Извините, произошла ошибка при создании доступа к VPN. "
-            "Пожалуйста, попробуйте позже или обратитесь к администратору.",
-            reply_markup=START_KEYBOARD
-        )
+        # Проверяем существующий ключ
+        existing_key = find_user_key(user)
+        if existing_key:
+            # Обновляем информацию о ключе в базе данных
+            vpn_key = get_vpn_key(db, existing_key['id'])
+            if not vpn_key:
+                vpn_key = create_vpn_key(
+                    db,
+                    user_id=db_user.id,
+                    key_id=existing_key['id'],
+                    name=existing_key['name']
+                )
+            
+            await update.message.reply_text(
+                VPN_INSTRUCTIONS + f"\n`{existing_key['accessUrl']}`",
+                parse_mode='Markdown',
+                disable_web_page_preview=True,
+                reply_markup=START_KEYBOARD
+            )
+            
+            # Логируем действие
+            log_user_action(db, db_user.id, "access_vpn", "Accessed existing VPN key")
+            return
+
+        # Создаем новый ключ VPN
+        vpn_key = vpn.create_access_key(user_identifier)
+        if vpn_key:
+            # Сохраняем ключ в базе данных
+            create_vpn_key(
+                db,
+                user_id=db_user.id,
+                key_id=vpn_key['id'],
+                name=vpn_key['name']
+            )
+            
+            await update.message.reply_text(
+                VPN_INSTRUCTIONS + f"\n`{vpn_key['accessUrl']}`",
+                parse_mode='Markdown',
+                disable_web_page_preview=True,
+                reply_markup=START_KEYBOARD
+            )
+            
+            # Логируем действие
+            log_user_action(db, db_user.id, "create_vpn", "Created new VPN key")
+        else:
+            logger.error(f"Failed to create VPN access for user {user_identifier}")
+            await update.message.reply_text(
+                "Извините, произошла ошибка при создании доступа к VPN. "
+                "Пожалуйста, попробуйте позже или обратитесь к администратору.",
+                reply_markup=START_KEYBOARD
+            )
+            
+            # Логируем ошибку
+            log_user_action(db, db_user.id, "error", "Failed to create VPN key")
+    
+    finally:
+        db.close()
 
 async def mentor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send mentor contact information"""
@@ -273,34 +328,62 @@ async def regenerate(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         )
         return
 
-    # Находим существующий ключ
-    existing_key = find_user_key(user)
-    if not existing_key:
-        await update.message.reply_text(
-            "У вас нет активного ключа. Используйте команду /start чтобы получить новый ключ."
-        )
-        return
+    db = next(get_db())
+    try:
+        # Получаем пользователя из базы данных
+        db_user = get_user(db, user.id)
+        if not db_user:
+            await update.message.reply_text(
+                "Извините, произошла ошибка. Пожалуйста, используйте /start для начала работы."
+            )
+            return
 
-    # Удаляем старый ключ
-    vpn.delete_access_key(existing_key['id'])
+        # Находим существующий ключ
+        existing_key = find_user_key(user)
+        if not existing_key:
+            await update.message.reply_text(
+                "У вас нет активного ключа. Используйте команду /start чтобы получить новый ключ."
+            )
+            return
+
+        # Удаляем старый ключ
+        vpn.delete_access_key(existing_key['id'])
+        deactivate_vpn_key(db, existing_key['id'])
+        
+        # Создаем новый ключ
+        user_identifier = get_user_identifier(user)
+        new_key = vpn.create_access_key(user_identifier)
+        
+        if new_key:
+            # Сохраняем новый ключ в базе данных
+            create_vpn_key(
+                db,
+                user_id=db_user.id,
+                key_id=new_key['id'],
+                name=new_key['name']
+            )
+            
+            await update.message.reply_text(
+                "✅ Ваш ключ был успешно перевыпущен!\n\n" + 
+                VPN_INSTRUCTIONS + f"\n`{new_key['accessUrl']}`",
+                parse_mode='Markdown',
+                disable_web_page_preview=True
+            )
+            
+            # Логируем действие
+            log_user_action(db, db_user.id, "regenerate_vpn", "Regenerated VPN key")
+        else:
+            logger.error(f"Failed to regenerate VPN access for user {user_identifier}")
+            await update.message.reply_text(
+                "Извините, произошла ошибка при перевыпуске ключа. "
+                "Пожалуйста, попробуйте позже или обратитесь к ментору."
+            )
+            
+            # Логируем ошибку
+            log_user_action(db, db_user.id, "error", "Failed to regenerate VPN key")
     
-    # Создаем новый ключ
-    user_identifier = get_user_identifier(user)
-    new_key = vpn.create_access_key(user_identifier)
-    
-    if new_key:
-        await update.message.reply_text(
-            "✅ Ваш ключ был успешно перевыпущен!\n\n" + 
-            VPN_INSTRUCTIONS + f"\n`{new_key['accessUrl']}`",
-            parse_mode='Markdown',
-            disable_web_page_preview=True
-        )
-    else:
-        logger.error(f"Failed to regenerate VPN access for user {user_identifier}")
-        await update.message.reply_text(
-            "Извините, произошла ошибка при перевыпуске ключа. "
-            "Пожалуйста, попробуйте позже или обратитесь к ментору."
-        )
+    finally:
+        db.close()
 
 async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Delete user's access key"""
@@ -309,63 +392,101 @@ async def delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 
     user = update.effective_user
     
-    # Находим существующий ключ
-    existing_key = find_user_key(user)
-    if not existing_key:
-        await update.message.reply_text(
-            "У вас нет активного ключа."
-        )
-        return
+    db = next(get_db())
+    try:
+        # Получаем пользователя из базы данных
+        db_user = get_user(db, user.id)
+        if not db_user:
+            await update.message.reply_text(
+                "Извините, произошла ошибка. Пожалуйста, используйте /start для начала работы."
+            )
+            return
 
-    # Удаляем ключ
-    if vpn.delete_access_key(existing_key['id']):
-        await update.message.reply_text(
-            "✅ Ваш ключ был успешно удален.\n"
-            "Используйте команду /start чтобы получить новый ключ."
-        )
-    else:
-        await update.message.reply_text(
-            "Извините, произошла ошибка при удалении ключа. "
-            "Пожалуйста, попробуйте позже или обратитесь к ментору."
-        )
+        # Находим существующий ключ
+        existing_key = find_user_key(user)
+        if not existing_key:
+            await update.message.reply_text(
+                "У вас нет активного ключа."
+            )
+            return
+
+        # Удаляем ключ
+        if vpn.delete_access_key(existing_key['id']):
+            # Деактивируем ключ в базе данных
+            deactivate_vpn_key(db, existing_key['id'])
+            
+            await update.message.reply_text(
+                "✅ Ваш ключ был успешно удален.\n"
+                "Используйте команду /start чтобы получить новый ключ."
+            )
+            
+            # Логируем действие
+            log_user_action(db, db_user.id, "delete_vpn", "Deleted VPN key")
+        else:
+            await update.message.reply_text(
+                "Извините, произошла ошибка при удалении ключа. "
+                "Пожалуйста, попробуйте позже или обратитесь к ментору."
+            )
+            
+            # Логируем ошибку
+            log_user_action(db, db_user.id, "error", "Failed to delete VPN key")
+    
+    finally:
+        db.close()
 
 async def check_memberships(context: CallbackContext) -> None:
     """Periodic task to check channel memberships and remove VPN access if needed"""
     # Получаем список администраторов канала
     admin_members = await get_channel_members(context)
     
-    # Получаем все ключи
-    all_keys = vpn.get_all_keys()
-    keys_to_check = []
-    
-    # Сначала собираем все ключи, которые нужно проверить
-    for key in all_keys:
-        try:
-            key_name = key.get('name', '')
-            if not key_name or not key_name.startswith("id"):
-                continue
-                
+    db = next(get_db())
+    try:
+        # Получаем все активные ключи
+        all_keys = vpn.get_all_keys()
+        keys_to_check = []
+        
+        # Сначала собираем все ключи, которые нужно проверить
+        for key in all_keys:
             try:
-                user_id = int(key_name.split(" - ")[0][2:])  # Убираем "id" из начала
-                # Если пользователь админ, пропускаем проверку
-                if user_id in admin_members:
+                key_name = key.get('name', '')
+                if not key_name or not key_name.startswith("id"):
                     continue
-                keys_to_check.append((key['id'], user_id, key_name))
-            except (ValueError, IndexError):
-                continue
-        except Exception as e:
-            logger.error(f"Error processing key {key['id']}: {e}")
+                    
+                try:
+                    user_id = int(key_name.split(" - ")[0][2:])  # Убираем "id" из начала
+                    # Если пользователь админ, пропускаем проверку
+                    if user_id in admin_members:
+                        continue
+                    keys_to_check.append((key['id'], user_id, key_name))
+                except (ValueError, IndexError):
+                    continue
+            except Exception as e:
+                logger.error(f"Error processing key {key['id']}: {e}")
+        
+        # Теперь проверяем членство только для обычных пользователей
+        for key_id, user_id, key_name in keys_to_check:
+            try:
+                if not await check_channel_membership(user_id, context):
+                    # Удаляем ключ из VPN сервера
+                    vpn.delete_access_key(key_id)
+                    
+                    # Деактивируем ключ в базе данных
+                    deactivate_vpn_key(db, key_id)
+                    
+                    # Получаем пользователя и логируем действие
+                    db_user = get_user(db, user_id)
+                    if db_user:
+                        log_user_action(db, db_user.id, "auto_delete", "Key deleted due to channel membership check")
+                    
+                    logger.error(f"Removed VPN access for user {key_name}")
+                
+                # Делаем паузу в 1.5 секунды после каждой проверки
+                await asyncio.sleep(1.5)
+            except Exception as e:
+                logger.error(f"Error checking membership for key {key_id}: {e}")
     
-    # Теперь проверяем членство только для обычных пользователей
-    for key_id, user_id, key_name in keys_to_check:
-        try:
-            if not await check_channel_membership(user_id, context):
-                vpn.delete_access_key(key_id)
-                logger.error(f"Removed VPN access for user {key_name}")
-            # Делаем паузу в 1.5 секунды после каждой проверки
-            await asyncio.sleep(1.5)
-        except Exception as e:
-            logger.error(f"Error checking membership for key {key_id}: {e}")
+    finally:
+        db.close()
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Send help message"""
@@ -746,7 +867,26 @@ async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_
 
 def main() -> None:
     """Start the bot."""
+    # Initialize database
+    init_db()
+    
+    # Enable logging
+    logging.basicConfig(
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        level=logging.DEBUG,
+        handlers=[
+            logging.FileHandler('/opt/vpn_bot/bot.log'),
+            logging.StreamHandler()
+        ]
+    )
+    logger = logging.getLogger(__name__)
+
+    # Initialize bot
     application = Application.builder().token(BOT_TOKEN).build()
+
+    # Initialize VPN and metrics
+    vpn = OutlineVPN()
+    metrics_collector = MetricsCollector()
 
     # Add handlers
     application.add_handler(CommandHandler("start", start))
@@ -757,7 +897,9 @@ def main() -> None:
     application.add_handler(CommandHandler("help", help_command))
     application.add_handler(CommandHandler("faq", faq_command))
     application.add_handler(CommandHandler("support", support_command))
+    application.add_handler(CommandHandler("stats", stats_command))
     application.add_handler(CallbackQueryHandler(support_callback, pattern="^support_"))
+    application.add_handler(CallbackQueryHandler(handle_stats_callback, pattern="^(stats_|peak_hours|total_stats)"))
     
     # Admin handlers
     application.add_handler(CommandHandler("admin", admin_command))
@@ -775,7 +917,7 @@ def main() -> None:
 
     # Add periodic membership check
     job_queue = application.job_queue
-    job_queue.run_repeating(check_memberships, interval=MEMBERSHIP_CHECK_INTERVAL)
+    job_queue.run_repeating(check_memberships, interval=CHECK_MEMBERSHIP_INTERVAL)
 
     # Start the Bot
     application.run_polling(allowed_updates=Update.ALL_TYPES)

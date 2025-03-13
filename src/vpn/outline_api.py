@@ -2,7 +2,7 @@ import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 import requests
 import logging
-from config import OUTLINE_API_URL
+from config.settings import OUTLINE_API_URL
 
 logger = logging.getLogger(__name__)
 
