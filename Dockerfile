@@ -14,8 +14,7 @@ WORKDIR /app
 COPY requirements.txt .
 
 # Установка зависимостей
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir psycopg2-binary
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Копирование исходного кода
 COPY . .
