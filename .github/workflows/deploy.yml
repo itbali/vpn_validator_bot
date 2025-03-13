@@ -32,6 +32,7 @@ jobs:
           ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
           CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          OUTLINE_API_URL: ${{ secrets.OUTLINE_API_URL }}
         run: |
           # Копируем файлы на сервер
           ssh $SERVER_USER@$SERVER_IP "mkdir -p $DEPLOY_PATH"
@@ -43,6 +44,7 @@ jobs:
           ADMIN_IDS=${ADMIN_IDS}
           CHANNEL_ID=${CHANNEL_ID}
           DATABASE_URL=${DATABASE_URL}
+          OUTLINE_API_URL=${OUTLINE_API_URL}
           EOL"
           
           # Запускаем развертывание на сервере
