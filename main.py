@@ -1,8 +1,8 @@
 import logging
 import asyncio
 from datetime import datetime
-from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import Application, CommandHandler, ContextTypes, CallbackContext, CallbackQueryHandler
+from telegram import Update, BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup, KeyboardButton
+from telegram.ext import Application, CommandHandler, ContextTypes, CallbackContext, CallbackQueryHandler, MessageHandler, filters, ConversationHandler
 from config import BOT_TOKEN, CHANNEL_ID
 from outline_api import OutlineVPN
 
@@ -113,6 +113,17 @@ ADMIN_MENU_MESSAGE = """
 Выберите действие:
 """
 
+# Добавляем состояния для админского меню
+WAITING_FOR_USERNAME_INFO = 1
+WAITING_FOR_USERNAME_DELETE = 2
+
+# Добавляем клавиатуру для старта
+START_KEYBOARD = ReplyKeyboardMarkup([
+    [KeyboardButton("📊 Статус"), KeyboardButton("❓ FAQ")],
+    [KeyboardButton("🔄 Перевыпустить"), KeyboardButton("❌ Удалить")],
+    [KeyboardButton("💬 Поддержка"), KeyboardButton("ℹ️ Помощь")]
+], resize_keyboard=True)
+
 # Enable logging
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -207,7 +218,8 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(
             VPN_INSTRUCTIONS + f"\n`{existing_key['accessUrl']}`",
             parse_mode='Markdown',
-            disable_web_page_preview=True
+            disable_web_page_preview=True,
+            reply_markup=START_KEYBOARD
         )
         return
 
@@ -217,13 +229,15 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await update.message.reply_text(
             VPN_INSTRUCTIONS + f"\n`{vpn_key['accessUrl']}`",
             parse_mode='Markdown',
-            disable_web_page_preview=True
+            disable_web_page_preview=True,
+            reply_markup=START_KEYBOARD
         )
     else:
         logger.error(f"Failed to create VPN access for user {user_identifier}")
         await update.message.reply_text(
             "Извините, произошла ошибка при создании доступа к VPN. "
-            "Пожалуйста, попробуйте позже или обратитесь к администратору."
+            "Пожалуйста, попробуйте позже или обратитесь к администратору.",
+            reply_markup=START_KEYBOARD
         )
 
 async def mentor(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -545,7 +559,6 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
                 message,
                 parse_mode='Markdown'
             )
-            logger.error("Successfully sent admin_stats message")
         except Exception as e:
             logger.error(f"Error sending admin_stats message: {str(e)}")
 
@@ -578,9 +591,9 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     elif query.data == 'admin_user_input':
         # Запрашиваем username или ID пользователя
+        context.user_data['admin_state'] = WAITING_FOR_USERNAME_INFO
         message = (
-            "Отправьте username или ID пользователя в формате:\n"
-            "`/admin_user @username` или `/admin_user id123456`\n\n"
+            "Отправьте username пользователя (например: @username)\n\n"
             "Вернуться в меню: /admin"
         )
         await query.message.edit_text(
@@ -590,9 +603,9 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
     elif query.data == 'admin_delete_input':
         # Запрашиваем username или ID для удаления
+        context.user_data['admin_state'] = WAITING_FOR_USERNAME_DELETE
         message = (
-            "Отправьте username или ID пользователя для удаления ключа в формате:\n"
-            "`/admin_delete @username` или `/admin_delete id123456`\n\n"
+            "Отправьте username пользователя для удаления ключа (например: @username)\n\n"
             "Вернуться в меню: /admin"
         )
         await query.message.edit_text(
@@ -627,97 +640,109 @@ async def admin_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             parse_mode='Markdown'
         )
 
-async def admin_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Show detailed user information"""
+async def handle_admin_input(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle admin input for user info and deletion"""
     if not update.message or not await is_admin(update.effective_user.id):
         return
 
-    if not context.args:
+    admin_state = context.user_data.get('admin_state')
+    if not admin_state:
+        return
+
+    username = update.message.text
+    if not username.startswith('@'):
         await update.message.reply_text(
-            "Укажите username или ID пользователя\n"
-            "Пример: `/admin_user @username`",
-            parse_mode='Markdown'
+            "❌ Неверный формат. Отправьте username в формате @username\n\n"
+            "Вернуться в меню: /admin"
         )
         return
 
-    target = context.args[0]
-    all_keys = vpn.get_all_keys()
-    
-    for key in all_keys:
-        if target in key['name']:
-            key_info = vpn.get_key_info(key['id'])
-            message = (
-                f"*Информация о пользователе {key['name']}:*\n\n"
-                f"🔑 ID ключа: `{key['id']}`\n"
-                f"📊 Использовано трафика: {key_info.get('data_usage', 0) / (1024*1024*1024):.2f} GB\n"
-                f"🕒 Последняя активность: {key_info.get('last_active', 'Неизвестно')}\n"
-                f"⏱ Время работы: {key_info.get('uptime', 'Неизвестно')}\n"
-                f"📅 Дата создания: {key_info.get('created_at', 'Неизвестно')}\n\n"
-                "Вернуться в меню: /admin"
-            )
-            
-            await update.message.reply_text(
-                message,
-                parse_mode='Markdown'
-            )
-            return
-
-    await update.message.reply_text(
-        "❌ Пользователь не найден\n\n"
-        "Вернуться в меню: /admin"
-    )
-
-async def admin_delete(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Delete user's key by username or ID"""
-    if not update.message or not await is_admin(update.effective_user.id):
-        return
-
-    if not context.args:
-        await update.message.reply_text(
-            "Укажите username или ID пользователя\n"
-            "Пример: `/admin_delete @username`",
-            parse_mode='Markdown'
-        )
-        return
-
-    target = context.args[0]
-    all_keys = vpn.get_all_keys()
-    
-    for key in all_keys:
-        if target in key['name']:
-            # Получаем user_id из имени ключа
-            try:
-                if key['name'].startswith('id'):
-                    user_id = int(key['name'].split(' - ')[0][2:])
-                else:
-                    # Если это username, пропускаем уведомление
-                    user_id = None
-            except:
-                user_id = None
-
-            # Удаляем ключ
-            if vpn.delete_access_key(key['id']):
-                # Отправляем уведомление пользователю
-                if user_id:
-                    try:
-                        await context.bot.send_message(
-                            chat_id=user_id,
-                            text="❗️ Ваш ключ VPN был отозван администратором.\n"
-                                 "Для получения нового ключа напишите @alexDiuzhev"
-                        )
-                    except:
-                        pass
-                
-                await update.message.reply_text(
-                    f"✅ Ключ пользователя {key['name']} успешно удален\n\n"
+    if admin_state == WAITING_FOR_USERNAME_INFO:
+        # Показываем информацию о пользователе
+        all_keys = vpn.get_all_keys()
+        for key in all_keys:
+            if username in key['name']:
+                key_info = vpn.get_key_info(key['id'])
+                message = (
+                    f"*Информация о пользователе {key['name']}:*\n\n"
+                    f"🔑 ID ключа: `{key['id']}`\n"
+                    f"📊 Использовано трафика: {key_info.get('data_usage', 0) / (1024*1024*1024):.2f} GB\n"
+                    f"🕒 Последняя активность: {key_info.get('last_active', 'Неизвестно')}\n"
+                    f"⏱ Время работы: {key_info.get('uptime', 'Неизвестно')}\n"
+                    f"📅 Дата создания: {key_info.get('created_at', 'Неизвестно')}\n\n"
                     "Вернуться в меню: /admin"
                 )
+                await update.message.reply_text(
+                    message,
+                    parse_mode='Markdown'
+                )
+                context.user_data.pop('admin_state', None)
                 return
 
-    await update.message.reply_text(
-        "❌ Пользователь не найден\n\n"
-        "Вернуться в меню: /admin"
-    )
+        await update.message.reply_text(
+            "❌ Пользователь не найден\n\n"
+            "Вернуться в меню: /admin"
+        )
+
+    elif admin_state == WAITING_FOR_USERNAME_DELETE:
+        # Удаляем ключ пользователя
+        all_keys = vpn.get_all_keys()
+        for key in all_keys:
+            if username in key['name']:
+                # Получаем user_id из имени ключа
+                try:
+                    if key['name'].startswith('id'):
+                        user_id = int(key['name'].split(' - ')[0][2:])
+                    else:
+                        user_id = None
+                except:
+                    user_id = None
+
+                # Удаляем ключ
+                if vpn.delete_access_key(key['id']):
+                    # Отправляем уведомление пользователю
+                    if user_id:
+                        try:
+                            await context.bot.send_message(
+                                chat_id=user_id,
+                                text="❗️ Ваш ключ VPN был отозван администратором.\n"
+                                     "Для получения нового ключа напишите @alexDiuzhev"
+                            )
+                        except:
+                            pass
+                    
+                    await update.message.reply_text(
+                        f"✅ Ключ пользователя {key['name']} успешно удален\n\n"
+                        "Вернуться в меню: /admin"
+                    )
+                    context.user_data.pop('admin_state', None)
+                    return
+
+        await update.message.reply_text(
+            "❌ Пользователь не найден\n\n"
+            "Вернуться в меню: /admin"
+        )
+
+    context.user_data.pop('admin_state', None)
+
+async def handle_keyboard_buttons(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle keyboard button presses"""
+    if not update.message:
+        return
+
+    text = update.message.text
+    if text == "📊 Статус":
+        await status_command(update, context)
+    elif text == "❓ FAQ":
+        await faq_command(update, context)
+    elif text == "🔄 Перевыпустить":
+        await regenerate(update, context)
+    elif text == "❌ Удалить":
+        await delete(update, context)
+    elif text == "💬 Поддержка":
+        await support_command(update, context)
+    elif text == "ℹ️ Помощь":
+        await help_command(update, context)
 
 def main() -> None:
     """Start the bot."""
@@ -736,9 +761,14 @@ def main() -> None:
     
     # Admin handlers
     application.add_handler(CommandHandler("admin", admin_command))
-    application.add_handler(CommandHandler("admin_user", admin_user))
-    application.add_handler(CommandHandler("admin_delete", admin_delete))
     application.add_handler(CallbackQueryHandler(admin_callback, pattern="^admin_"))
+    
+    # Message handlers
+    application.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND & filters.Regex('^(📊 Статус|❓ FAQ|🔄 Перевыпустить|❌ Удалить|💬 Поддержка|ℹ️ Помощь)$'),
+        handle_keyboard_buttons
+    ))
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_admin_input))
 
     # Setup commands
     application.job_queue.run_once(setup_commands, when=1)
