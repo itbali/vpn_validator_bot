@@ -50,6 +50,13 @@ data/
 temp_*
 vpn_bot.tar.gz
 
+# SSH keys
+*_deploy*
+*.pem
+*.key
+id_*
+.ssh/
+
 # OS
 .DS_Store
 Thumbs.db 
