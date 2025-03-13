@@ -14,7 +14,7 @@ Telegram бот для управления доступом к VPN через O
 
 1. Клонируйте репозиторий:
 ```bash
-git clone https://github.com/alexDiuzhev/vpn_validator_bot.git
+git clone https://github.com/itbali/vpn_validator_bot.git
 cd vpn_validator_bot
 ```
 
