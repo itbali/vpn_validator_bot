@@ -430,11 +430,12 @@ bot.on('message', async (msg) => {
           chatId,
           '<b>📱 Как установить и настроить VPN:</b>\n\n' +
           '1️⃣ <b>Установите приложение Outline:</b>\n' +
-          '• iOS: <a href="https://apps.apple.com/app/outline-app/id1356177741">App Store</a>\n' +
+          '• iOS: <a href="https://itunes.apple.com/us/app/outline-app/id1356177741">App Store</a>\n' +
           '• Android: <a href="https://play.google.com/store/apps/details?id=org.outline.android.client">Google Play</a>\n' +
-          '• Windows: <a href="https://raw.githubusercontent.com/Jigsaw-Code/outline-releases/master/client/stable/Outline-Client.exe">Скачать</a>\n' +
-          '• macOS: <a href="https://itunes.apple.com/app/outline-app/id1356178125">Mac App Store</a>\n' +
-          '• Linux: <a href="https://raw.githubusercontent.com/Jigsaw-Code/outline-releases/master/client/stable/Outline-Client.AppImage">Скачать</a>\n\n' +
+          '• Windows: <a href="https://s3.amazonaws.com/outline-releases/client/windows/stable/Outline-Client.exe">Скачать</a>\n' +
+          '• macOS: <a href="https://itunes.apple.com/us/app/outline-app/id1356178125">Mac App Store</a>\n' +
+          '• Linux: <a href="https://support.google.com/outline/answer/15331527">Инструкция</a>\n' +
+          '• Chrome: <a href="https://play.google.com/store/apps/details?id=org.outline.android.client">Плагин</a>\n\n' +
           '2️⃣ <b>Подключение:</b>\n' +
           '• Нажмите "🔑 Получить ключ" в меню\n' +
           '• Скопируйте полученный ключ\n' +
