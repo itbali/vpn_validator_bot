@@ -35,6 +35,10 @@ const User = sequelize.define<IUser>('User', {
   is_subscribed: {
     type: DataTypes.BOOLEAN,
     defaultValue: false
+  },
+  is_paid_subscribed: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false
   }
 });
 

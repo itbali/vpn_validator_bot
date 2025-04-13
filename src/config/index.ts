@@ -26,6 +26,8 @@ const config: Config = {
   telegram: {
     channelId: process.env.CHANNEL_ID || '',
     channelUrl: process.env.CHANNEL_URL || '',
+    paidChannelId: process.env.PAID_CHANNEL_ID || '',
+    paidChannelUrl: process.env.PAID_CHANNEL_URL || '',
     adminIds: JSON.parse(process.env.ADMIN_IDS || '[]'),
     checkMembershipInterval: parseInt(process.env.CHECK_MEMBERSHIP_INTERVAL || '3600')
   },

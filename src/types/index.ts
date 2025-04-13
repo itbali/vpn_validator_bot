@@ -7,6 +7,7 @@ export interface IUser extends Model {
   is_admin: boolean;
   subscription_check: Date | null;
   is_subscribed: boolean;
+  is_paid_subscribed: boolean;
 }
 
 export interface IVPNConfig extends Model {
@@ -58,6 +59,8 @@ export interface Config {
   telegram: {
     channelId: string;
     channelUrl: string;
+    paidChannelId: string;
+    paidChannelUrl: string;
     adminIds: string[];
     checkMembershipInterval: number;
   };
@@ -67,4 +70,16 @@ export interface Config {
     outlineApiUrl: string;
     outlineCertSha256: string;
   };
+}
+
+export interface User {
+  id: number;
+  telegram_id: number;
+  username: string | null;
+  first_name: string | null;
+  last_name: string | null;
+  language_code: string | null;
+  is_paid_subscribed: boolean;
+  created_at: Date;
+  updated_at: Date;
 } 

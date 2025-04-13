@@ -6,6 +6,8 @@ import config from '../config';
 import { MonitoringService } from './monitoringService';
 import { formatBytes } from '../utils/formatters';
 
+const ADMIN_IDS = config.telegram.adminIds.map(Number);
+
 export const bot = new TelegramBot(config.bot.token, { polling: true });
 const monitoringService = new MonitoringService(bot);
 
@@ -20,26 +22,42 @@ const adminKeyboard: TelegramBot.SendMessageOptions = {
   }
 };
 
-async function isAdmin(chatId: number): Promise<boolean> {
+const isAdmin = async (chatId: number): Promise<boolean> => {
   try {
-    const member = await bot.getChatMember(Number(config.telegram.channelId), chatId);
-    return ['administrator', 'creator'].includes(member.status);
+    const user = await User.findOne({
+      where: { telegram_id: String(chatId) }
+    });
+
+    if (!user) {
+      return false;
+    }
+
+    if (!user.telegram_id || !user.username) {
+      return false;
+    }
+
+    return ADMIN_IDS.includes(chatId);
   } catch (error) {
     console.error('Error checking admin status:', error);
     return false;
   }
-}
+};
 
-const mainKeyboard = (isAdmin: boolean): TelegramBot.SendMessageOptions => ({
-  reply_markup: {
-    keyboard: [
-      [{ text: '🎭 VPN' }, { text: '👨‍💻 Менторинг' }],
-      [{ text: '🔄 Перезапустить бота' }],
-      ...(isAdmin ? [[{ text: '⚙️ Админ панель' }]] : [])
-    ],
-    resize_keyboard: true
+const mainKeyboard = async (chatId: number): Promise<TelegramBot.SendMessageOptions> => {
+  const isUserAdmin = await isAdmin(chatId);
+  const isMentorSubscriber = await subscriptionService.checkMentorSubscription(chatId);
+  
+  return {
+    reply_markup: {
+      keyboard: [
+        [{ text: '🎭 VPN' }, ...(isMentorSubscriber ? [{ text: '👨‍💻 Менторинг' }] : [])],
+        [{ text: '🔄 Перезапустить бота' }],
+        ...(isUserAdmin ? [[{ text: '⚙️ Админ панель' }]] : [])
+      ],
+      resize_keyboard: true
+    }
   }
-});
+};
 
 const vpnKeyboard: TelegramBot.SendMessageOptions = {
   reply_markup: {
@@ -69,6 +87,10 @@ bot.onText(/\/start/, async (msg: TelegramBot.Message) => {
 
   console.log(`👤 Пользователь ${username || 'без username'} (ID: ${chatId}) запустил бота`);
 
+  if (!msg.from) {
+    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
+  }
+
   try {
     const isUserAdmin = await isAdmin(chatId);
     console.log(`📝 Статус пользователя ${chatId}:`, {
@@ -77,28 +99,35 @@ bot.onText(/\/start/, async (msg: TelegramBot.Message) => {
       isChatAdmin: isUserAdmin
     });
 
-    const isSubscribed = await subscriptionService.checkUserSubscription(chatId);
-    if (!isSubscribed) {
+    const [user] = await User.findOrCreate({
+      where: { telegram_id: String(msg.from.id) },
+      defaults: {
+        telegram_id: String(msg.from.id),
+        username: msg.from.username,
+        first_name: msg.from.first_name,
+        last_name: msg.from.last_name,
+      },
+    });
+
+    if (!user.is_subscribed) {
       return bot.sendMessage(
         chatId,
-        `Для использования бота необходимо подписаться на канал: ${config.telegram.channelUrl}`
+        `Для доступа к VPN необходимо подписаться на канал: ${config.telegram.channelUrl}`
       );
     }
 
-    const [user] = await User.findOrCreate({
-      where: { telegram_id: chatId.toString() },
-      defaults: { 
-        username, 
-        is_subscribed: true,
-        is_admin: isUserAdmin 
-      }
-    });
+    if (!user.is_paid_subscribed) {
+      return bot.sendMessage(
+        chatId,
+        `Для доступа к VPN необходимо подписаться на платный канал: ${config.telegram.paidChannelUrl}
+        Или быть учеником на менторинге по программированию`
+      );
+    }
 
     if (!user.is_active) {
       return bot.sendMessage(chatId, 'Ваш аккаунт не активен. Обратитесь к администратору.');
     }
 
-    // Обновляем статус админа в базе данных, если он изменился
     if (user.is_admin !== isUserAdmin) {
       await User.update(
         { is_admin: isUserAdmin },
@@ -106,7 +135,8 @@ bot.onText(/\/start/, async (msg: TelegramBot.Message) => {
       );
     }
 
-    await bot.sendMessage(chatId, 'Добро пожаловать! Выберите действие:', mainKeyboard(isUserAdmin));
+    const keyboard = await mainKeyboard(chatId);
+    await bot.sendMessage(chatId, 'Добро пожаловать! Выберите действие:', keyboard);
   } catch (error) {
     console.error('Error in /start command:', error);
     bot.sendMessage(chatId, 'Произошла ошибка. Попробуйте позже.');
@@ -117,7 +147,12 @@ bot.onText(/\/start/, async (msg: TelegramBot.Message) => {
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
-  const username = msg.from?.username;
+
+  if (!msg.from) {
+    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
+  }
+
+  const username = msg.from.username;
 
   console.log(`📨 Сообщение от ${username || 'без username'} (ID: ${chatId}): ${text}`);
 
@@ -201,7 +236,7 @@ bot.on('message', async (msg) => {
           console.error('Error validating keys:', error);
           await bot.sendMessage(chatId, '❌ Произошла ошибка при проверке ключей.');
         }
-        await bot.sendMessage(chatId, 'Вернуться в главное меню:', mainKeyboard(isUserAdmin));
+        await bot.sendMessage(chatId, 'Вернуться в главное меню:', await mainKeyboard(chatId));
         break;
 
       case '👥 Пользователи':
@@ -219,10 +254,12 @@ bot.on('message', async (msg) => {
           usersMessage += `Имя: ${user.username || 'Не указано'}\n`;
           usersMessage += `Статус: ${user.is_active ? '✅' : '❌'}\n`;
           usersMessage += `Админ: ${user.is_admin ? '✅' : '❌'}\n`;
+          usersMessage += `VPN подписка: ${user.is_subscribed ? '✅' : '❌'}\n`;
+          usersMessage += `Платная подписка: ${user.is_paid_subscribed ? '✅' : '❌'}\n`;
           usersMessage += `Активных ключей: ${configs.length}\n\n`;
         }
         await bot.sendMessage(chatId, usersMessage);
-        await bot.sendMessage(chatId, 'Вернуться в главное меню:', mainKeyboard(true));
+        await bot.sendMessage(chatId, 'Вернуться в главное меню:', await mainKeyboard(chatId));
         break;
 
       case '⚙️ Админ панель':
@@ -384,7 +421,7 @@ bot.on('message', async (msg) => {
           await bot.sendMessage(chatId, 'Пожалуйста, начните с команды /start');
           return;
         }
-        await bot.sendMessage(chatId, 'Главное меню:', mainKeyboard(isUserAdmin));
+        await bot.sendMessage(chatId, 'Главное меню:', await mainKeyboard(chatId));
         break;
 
       case '🎭 VPN':
@@ -396,6 +433,14 @@ bot.on('message', async (msg) => {
         break;
 
       case '👨‍💻 Менторинг':
+        const isMentorSubscriber = await subscriptionService.checkMentorSubscription(chatId);
+        if (!isMentorSubscriber) {
+          await bot.sendMessage(
+            chatId,
+            `Для доступа к менторингу необходимо подписаться на канал: ${config.telegram.channelUrl}`
+          );
+          return;
+        }
         await bot.sendMessage(
           chatId,
           '<b>Выберите тип встречи:</b>\n\n' +
@@ -410,10 +455,11 @@ bot.on('message', async (msg) => {
         break;
 
       case '◀️ Главное меню':
+        const mainMenuKeyboard = await mainKeyboard(chatId);
         await bot.sendMessage(
           chatId,
           'Главное меню:',
-          mainKeyboard(isUserAdmin)
+          mainMenuKeyboard
         );
         break;
 
@@ -421,7 +467,7 @@ bot.on('message', async (msg) => {
         await bot.sendMessage(
           chatId,
           'Бот перезапущен. Выберите действие:',
-          mainKeyboard(isUserAdmin)
+          await mainKeyboard(chatId)
         );
         break;
 
@@ -461,6 +507,11 @@ bot.on('message', async (msg) => {
 
 bot.onText(/\/help/, (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
+  
+  if (!msg.from) {
+    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
+  }
+
   const helpMessage = `
 Доступные команды:
 /start - Начать работу с ботом
@@ -497,6 +548,11 @@ bot.onText(/\/mentor/, (msg: TelegramBot.Message) => {
 
 bot.onText(/\/regenerate/, async (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
+  
+  if (!msg.from) {
+    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
+  }
+
   try {
     const isSubscribed = await subscriptionService.checkUserSubscription(chatId);
     if (!isSubscribed) {
@@ -532,6 +588,11 @@ bot.onText(/\/regenerate/, async (msg: TelegramBot.Message) => {
 
 bot.onText(/\/delete/, async (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
+  
+  if (!msg.from) {
+    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
+  }
+
   try {
     const configToDelete = await VPNConfig.findOne({
       where: { 
@@ -583,6 +644,11 @@ bot.onText(/\/faq/, (msg: TelegramBot.Message) => {
 
 bot.onText(/\/support/, (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
+  
+  if (!msg.from) {
+    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
+  }
+
   const supportMessage = `
 Техническая поддержка:
 
@@ -600,6 +666,11 @@ bot.onText(/\/support/, (msg: TelegramBot.Message) => {
 
 bot.onText(/\/stats/, async (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
+  
+  if (!msg.from) {
+    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
+  }
+
   try {
     const user = await User.findOne({ where: { telegram_id: chatId.toString() } });
     const configs = await VPNConfig.findAll({
@@ -641,6 +712,11 @@ RAM: ${serverStatus.metrics.ram_usage.toFixed(1)}%
 
 bot.onText(/\/admin/, async (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
+  
+  if (!msg.from) {
+    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
+  }
+
   try {
     const admin = await isAdmin(chatId);
     if (!admin) {

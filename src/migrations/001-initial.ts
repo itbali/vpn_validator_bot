@@ -28,6 +28,10 @@ export async function up(queryInterface: QueryInterface) {
       type: DataTypes.BOOLEAN,
       defaultValue: false
     },
+    is_mentor_subscribed: {
+      type: DataTypes.BOOLEAN,
+      defaultValue: false
+    },
     created_at: {
       type: DataTypes.DATE,
       defaultValue: DataTypes.NOW

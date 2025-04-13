@@ -1,15 +1,26 @@
 import { User, VPNConfig } from '../models';
 import config from '../config';
 import { bot } from './telegramService';
+import { outlineService } from './outlineService';
 
 class SubscriptionService {
   async checkUserSubscription(userId: string | number): Promise<boolean> {
     try {
-      const member = await bot.getChatMember(
+      const regularMember = await bot.getChatMember(
         Number(config.telegram.channelId),
         typeof userId === 'string' ? Number(userId) : userId
       );
-      const isSubscribed = ['member', 'administrator', 'creator'].includes(member.status);
+
+      const validStatuses = ['member', 'administrator', 'creator'];
+      let isSubscribed = validStatuses.includes(regularMember.status);
+
+      if (config.telegram.paidChannelId) {
+        const paidMember = await bot.getChatMember(
+          Number(config.telegram.paidChannelId),
+          typeof userId === 'string' ? Number(userId) : userId
+        );
+        isSubscribed = isSubscribed || validStatuses.includes(paidMember.status);
+      }
 
       await User.update(
         {
@@ -28,11 +39,28 @@ class SubscriptionService {
     }
   }
 
+  async checkMentorSubscription(userId: string | number): Promise<boolean> {
+    try {
+      const member = await bot.getChatMember(
+        Number(config.telegram.channelId),
+        typeof userId === 'string' ? Number(userId) : userId
+      );
+      const isSubscribed = ['member', 'administrator', 'creator'].includes(member.status);
+
+      return isSubscribed;
+    } catch (error) {
+      console.error('Error checking mentor subscription:', error);
+      return false;
+    }
+  }
+
   async checkAllSubscriptions(): Promise<void> {
     const users = await User.findAll({
       where: { is_active: true },
       include: [VPNConfig]
     });
+
+    const { deactivatedKeys } = await outlineService.validateAllKeys();
 
     for (const user of users) {
       const isSubscribed = await this.checkUserSubscription(user.telegram_id);
@@ -47,6 +75,14 @@ class SubscriptionService {
         await bot.sendMessage(
           user.telegram_id,
           'Ваш VPN был деактивирован, так как вы отписались от канала. Подпишитесь снова и используйте /start для восстановления доступа.'
+        );
+      }
+
+      const userDeactivatedKey = deactivatedKeys.find(key => key.userId === user.telegram_id);
+      if (userDeactivatedKey) {
+        await bot.sendMessage(
+          user.telegram_id,
+          'Ваш VPN ключ был удален через Outline Manager. Используйте /start для получения нового ключа.'
         );
       }
     }
