@@ -13,18 +13,21 @@ class SubscriptionService {
 
       const validStatuses = ['member', 'administrator', 'creator'];
       let isSubscribed = validStatuses.includes(regularMember.status);
+      let isPaidSubscribed = false;
 
       if (config.telegram.paidChannelId) {
         const paidMember = await bot.getChatMember(
           Number(config.telegram.paidChannelId),
           typeof userId === 'string' ? Number(userId) : userId
         );
-        isSubscribed = isSubscribed || validStatuses.includes(paidMember.status);
+        isPaidSubscribed = validStatuses.includes(paidMember.status);
+        isSubscribed = isSubscribed || isPaidSubscribed;
       }
 
       await User.update(
         {
           is_subscribed: isSubscribed,
+          is_paid_subscribed: isPaidSubscribed,
           subscription_check: new Date()
         },
         {
