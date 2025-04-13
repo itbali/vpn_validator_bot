@@ -6,10 +6,7 @@ const sequelize = new Sequelize(config.database.url, {
   dialect: config.database.dialect,
   logging: false,
   dialectOptions: {
-    ssl: process.env.NODE_ENV === 'production' ? {
-      require: true,
-      rejectUnauthorized: false
-    } : false
+    ssl: false
   }
 });
 
