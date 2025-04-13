@@ -348,7 +348,10 @@ class OutlineService {
     }, 300000); // каждые 5 минут
   }
 
-  async validateAllKeys(): Promise<void> {
+  async validateAllKeys(): Promise<{
+    deactivatedKeys: Array<{id: string; userId: string}>;
+    totalChecked: number;
+  }> {
     try {
       const [outlineKeys, configs] = await Promise.all([
         this.listKeys(),
@@ -356,17 +359,25 @@ class OutlineService {
       ]);
 
       const outlineKeyIds = new Set(outlineKeys.map(key => key.id));
+      const deactivatedKeys: Array<{id: string; userId: string}> = [];
 
       for (const config of configs) {
         if (!outlineKeyIds.has(config.config_id)) {
-          console.log(`Key ${config.config_id} not found on Outline server, deactivating in database`);
           await config.update({ is_active: false });
+          deactivatedKeys.push({
+            id: config.config_id,
+            userId: config.user_id
+          });
         }
       }
 
-      console.log('Key validation completed');
+      return {
+        deactivatedKeys,
+        totalChecked: configs.length
+      };
     } catch (error) {
       console.error('Error validating keys:', error);
+      throw error;
     }
   }
 

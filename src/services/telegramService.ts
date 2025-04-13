@@ -182,8 +182,25 @@ bot.on('message', async (msg) => {
           return;
         }
         await bot.sendMessage(chatId, 'Начинаю проверку ключей...');
-        await outlineService.validateAllKeys();
-        await bot.sendMessage(chatId, 'Проверка завершена. Проверьте логи для деталей.');
+        try {
+          const result = await outlineService.validateAllKeys();
+          let message = `✅ Проверка завершена\n\n`;
+          message += `📊 Всего проверено ключей: ${result.totalChecked}\n`;
+          message += `❌ Деактивировано ключей: ${result.deactivatedKeys.length}\n\n`;
+          
+          if (result.deactivatedKeys.length > 0) {
+            message += `Деактивированные ключи:\n`;
+            for (const key of result.deactivatedKeys) {
+              const user = await User.findOne({ where: { telegram_id: key.userId } });
+              message += `- ID: ${key.id} (Пользователь: ${user?.username || key.userId})\n`;
+            }
+          }
+          
+          await bot.sendMessage(chatId, message);
+        } catch (error) {
+          console.error('Error validating keys:', error);
+          await bot.sendMessage(chatId, '❌ Произошла ошибка при проверке ключей.');
+        }
         await bot.sendMessage(chatId, 'Вернуться в главное меню:', mainKeyboard(isUserAdmin));
         break;
 
