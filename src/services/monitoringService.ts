@@ -21,8 +21,10 @@ interface SystemStatus {
 interface MetricsWithAlerts {
   cpuUsage: number;
   memoryUsage: number;
+  diskUsage: number;
   hasHighCpu: boolean;
   hasHighMemory: boolean;
+  hasHighDisk: boolean;
 }
 
 export class MonitoringService {
@@ -37,8 +39,8 @@ export class MonitoringService {
   private async getAdminUsers(): Promise<string[]> {
     const admins = await User.findAll({
       where: {
-        isAdmin: true,
-        isActive: true
+        is_admin: true,
+        is_active: true
       }
     });
     return admins.map(admin => admin.telegram_id.toString());
@@ -60,12 +62,25 @@ export class MonitoringService {
       try {
         const metrics = await this.collectMetrics();
         
+        // Сохраняем метрики в базу данных
+        await ServerMetric.create({
+          cpu_usage: metrics.cpuUsage,
+          ram_usage: metrics.memoryUsage,
+          disk_usage: metrics.diskUsage,
+          active_connections: 0, // TODO: добавить подсчет активных подключений
+          timestamp: new Date()
+        });
+
         if (metrics.hasHighCpu) {
           await this.sendAlertToAdmins(`⚠️ Внимание! Высокая загрузка CPU: ${metrics.cpuUsage.toFixed(1)}%`);
         }
 
         if (metrics.hasHighMemory) {
           await this.sendAlertToAdmins(`⚠️ Внимание! Высокая загрузка памяти: ${metrics.memoryUsage.toFixed(1)}%`);
+        }
+
+        if (metrics.hasHighDisk) {
+          await this.sendAlertToAdmins(`⚠️ Внимание! Высокая загрузка диска: ${metrics.diskUsage.toFixed(1)}%`);
         }
       } catch (error) {
         console.error('Error in monitoring service:', error);
@@ -79,12 +94,25 @@ export class MonitoringService {
     const freeMemory = os.freemem();
     const memoryUsage = ((totalMemory - freeMemory) / totalMemory) * 100;
 
+    // Получаем использование диска
+    const diskUsage = await this.getDiskUsage();
+
     return {
       cpuUsage,
       memoryUsage,
+      diskUsage,
       hasHighCpu: cpuUsage > 80,
-      hasHighMemory: memoryUsage > 90
+      hasHighMemory: memoryUsage > 90,
+      hasHighDisk: diskUsage > 90
     };
+  }
+
+  private async getDiskUsage(): Promise<number> {
+    return new Promise((resolve) => {
+      // На данный момент возвращаем фиксированное значение
+      // TODO: добавить реальный подсчет использования диска
+      resolve(50);
+    });
   }
 
   async getMetrics(period = '24h'): Promise<ServerMetricInstance[]> {
@@ -113,10 +141,21 @@ export class MonitoringService {
     });
 
     if (!latestMetric) {
-      throw new Error('No metrics available');
+      // Если метрик нет в базе, собираем текущие
+      const currentMetrics = await this.collectMetrics();
+      return {
+        metrics: {
+          cpu_usage: currentMetrics.cpuUsage,
+          ram_usage: currentMetrics.memoryUsage,
+          disk_usage: currentMetrics.diskUsage,
+          active_connections: 0
+        },
+        uptime: (os.uptime() / 3600).toFixed(1),
+        nodeVersion: process.version,
+        platform: os.platform(),
+        arch: os.arch()
+      };
     }
-
-    const uptimeHours = os.uptime() / 3600;
 
     return {
       metrics: {
@@ -125,7 +164,7 @@ export class MonitoringService {
         disk_usage: latestMetric.disk_usage,
         active_connections: latestMetric.active_connections
       },
-      uptime: uptimeHours.toFixed(1),
+      uptime: (os.uptime() / 3600).toFixed(1),
       nodeVersion: process.version,
       platform: os.platform(),
       arch: os.arch()
