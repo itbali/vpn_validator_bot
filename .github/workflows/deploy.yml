@@ -1,0 +1,81 @@
+name: Deploy VPN Bot
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    env:
+      DOCKER_BUILDKIT: 1
+      COMPOSE_DOCKER_CLI_BUILD: 1
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install SSH key
+        uses: shimataro/ssh-key-action@v2
+        with:
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          known_hosts: unnecessary
+          if_key_exists: replace
+
+      - name: Adding Known Hosts
+        run: |
+          mkdir -p ~/.ssh
+          ssh-keyscan -H ${{ secrets.SERVER_IP }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        env:
+          SERVER_IP: ${{ secrets.SERVER_IP }}
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          DEPLOY_PATH: /home/${{ secrets.SERVER_USER }}/vpn_bot_node
+          BOT_TOKEN: ${{ secrets.BOT_TOKEN }}
+          ADMIN_IDS: ${{ secrets.ADMIN_IDS }}
+          CHANNEL_ID: ${{ secrets.CHANNEL_ID }}
+          DATABASE_URL: postgresql://vpnbot:vpnbotpass@db:5432/vpnbot
+          OUTLINE_API_URL: ${{ secrets.OUTLINE_API_URL }}
+        run: |
+          # Проверка SSH соединения
+          ssh -T $SERVER_USER@$SERVER_IP 'echo "SSH connection successful"'
+          
+          # Создаем директорию если её нет
+          ssh $SERVER_USER@$SERVER_IP "mkdir -p $DEPLOY_PATH"
+          
+          # Копируем файлы на сервер
+          rsync -avz --delete \
+            --exclude '.git' \
+            --exclude '.github' \
+            --exclude 'node_modules' \
+            --exclude '__pycache__' \
+            --exclude 'logs' \
+            --exclude 'data' \
+            --exclude '*.db' \
+            --exclude '.env' \
+            ./ $SERVER_USER@$SERVER_IP:$DEPLOY_PATH/
+          
+          # Создаем файл .env на сервере
+          ssh $SERVER_USER@$SERVER_IP "cat > $DEPLOY_PATH/.env << 'EOL'
+          BOT_TOKEN=${BOT_TOKEN}
+          ADMIN_IDS=${ADMIN_IDS}
+          CHANNEL_ID=${CHANNEL_ID}
+          DATABASE_URL=${DATABASE_URL}
+          OUTLINE_API_URL=${OUTLINE_API_URL}
+          EOL"
+          
+          # Очистка Docker кэша и неиспользуемых образов
+          ssh $SERVER_USER@$SERVER_IP "docker system prune -f"
+          
+          # Запускаем контейнеры с увеличенным таймаутом
+          ssh $SERVER_USER@$SERVER_IP "cd $DEPLOY_PATH && \
+            DOCKER_CLIENT_TIMEOUT=120 \
+            COMPOSE_HTTP_TIMEOUT=120 \
+            docker-compose down || true && \
+            DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker-compose build --no-cache && \
+            docker-compose up -d" 

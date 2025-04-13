@@ -1,0 +1,70 @@
+import { Model } from 'sequelize';
+
+export interface IUser extends Model {
+  telegram_id: string;
+  username: string | null;
+  is_active: boolean;
+  is_admin: boolean;
+  subscription_check: Date | null;
+  is_subscribed: boolean;
+}
+
+export interface IVPNConfig extends Model {
+  config_id: string;
+  user_id: string;
+  config_data: string;
+  is_active: boolean;
+  created_at: Date;
+  last_used: Date | null;
+}
+
+export interface IVPNMetric extends Model {
+  config_id: string;
+  bytes_sent: number;
+  bytes_received: number;
+  last_connected: Date | null;
+  connection_time: number;
+  date: Date;
+}
+
+export interface IServerMetric extends Model {
+  cpu_usage: number;
+  ram_usage: number;
+  disk_usage: number;
+  active_connections: number;
+  timestamp: Date;
+}
+
+export interface Config {
+  bot: {
+    token: string;
+  };
+  database: {
+    dialect: 'postgres';
+    url: string;
+  };
+  server: {
+    port: number;
+  };
+  monitoring: {
+    checkInterval: number;
+    thresholds: {
+      cpu: number;
+      ram: number;
+      disk: number;
+      traffic: number;
+    };
+  };
+  telegram: {
+    channelId: string;
+    channelUrl: string;
+    adminIds: string[];
+    checkMembershipInterval: number;
+  };
+  vpn: {
+    serverPublicKey: string;
+    serverEndpoint: string;
+    outlineApiUrl: string;
+    outlineCertSha256: string;
+  };
+} 
