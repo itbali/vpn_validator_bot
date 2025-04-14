@@ -6,8 +6,6 @@ import config from '../config';
 import { MonitoringService } from './monitoringService';
 import { formatBytes } from '../utils/formatters';
 
-const ADMIN_IDS = config.telegram.adminIds.map(Number);
-
 export const bot = new TelegramBot(config.bot.token, { polling: true });
 const monitoringService = new MonitoringService(bot);
 
@@ -36,7 +34,9 @@ const isAdmin = async (chatId: number): Promise<boolean> => {
       return false;
     }
 
-    return ADMIN_IDS.includes(chatId);
+    const channelId = config.telegram.channelId;
+    const chatMember = await bot.getChatMember(channelId, chatId);
+    return ['creator', 'administrator'].includes(chatMember.status);
   } catch (error) {
     console.error('Error checking admin status:', error);
     return false;
