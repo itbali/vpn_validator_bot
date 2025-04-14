@@ -13,6 +13,7 @@ export interface IUser extends Model {
 export interface IVPNConfig extends Model {
   config_id: string;
   user_id: string;
+  server_id: number;
   config_data: string;
   is_active: boolean;
   created_at: Date;
@@ -34,6 +35,17 @@ export interface IServerMetric extends Model {
   disk_usage: number;
   active_connections: number;
   timestamp: Date;
+}
+
+export interface IVPNServer extends Model {
+  id: number;
+  name: string;
+  location: string;
+  outline_api_url: string;
+  outline_cert_sha256: string;
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
 }
 
 export interface Config {
@@ -64,11 +76,9 @@ export interface Config {
     adminIds: number[];
     checkMembershipInterval: number;
   };
-  vpn: {
-    serverPublicKey: string;
-    serverEndpoint: string;
-    outlineApiUrl: string;
-    outlineCertSha256: string;
+  vpn?: {
+    outlineApiUrl?: string;
+    outlineCertSha256?: string;
   };
 }
 

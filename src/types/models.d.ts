@@ -3,12 +3,25 @@ import { Model } from 'sequelize';
 export interface VPNConfigInstance extends Model {
   config_id: string;
   user_id: string;
+  server_id: number;
   config_data: string;
   is_active: boolean;
   created_at: Date;
   last_used: Date | null;
+  VPNServer?: VPNServerInstance;
   VPNMetrics?: VPNMetricInstance[];
   get(key: string): any;
+}
+
+export interface VPNServerInstance extends Model {
+  id: number;
+  name: string;
+  location: string;
+  outline_api_url: string;
+  outline_cert_sha256: string;
+  is_active: boolean;
+  created_at: Date;
+  updated_at: Date;
 }
 
 export interface VPNMetricInstance extends Model {

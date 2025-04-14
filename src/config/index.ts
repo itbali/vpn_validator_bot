@@ -1,7 +1,12 @@
 import dotenv from 'dotenv';
 import { Config } from '../types';
 
-dotenv.config();
+// Загружаем .env.local для локальной разработки
+if (process.env.NODE_ENV === 'local') {
+  dotenv.config({ path: '.env.local' });
+} else {
+  dotenv.config();
+}
 
 const config: Config = {
   bot: {
@@ -9,7 +14,7 @@ const config: Config = {
   },
   database: {
     dialect: 'postgres' as const,
-    url: process.env.DATABASE_URL || 'postgresql://vpnbot:vpnbotpass@db:5432/vpnbot'
+    url: process.env.DATABASE_URL || 'postgresql://vpnbot:vpnbotpass@localhost:5432/vpnbot'
   },
   server: {
     port: parseInt(process.env.PORT || '3000')
@@ -30,12 +35,6 @@ const config: Config = {
     paidChannelUrl: process.env.PAID_CHANNEL_URL || '',
     adminIds: process.env.ADMIN_IDS?.split(',').map(Number) || [],
     checkMembershipInterval: parseInt(process.env.CHECK_MEMBERSHIP_INTERVAL || '3600')
-  },
-  vpn: {
-    serverPublicKey: process.env.SERVER_PUBLIC_KEY || '',
-    serverEndpoint: process.env.SERVER_ENDPOINT || '',
-    outlineApiUrl: process.env.OUTLINE_API_URL || '',
-    outlineCertSha256: process.env.OUTLINE_CERT_SHA256 || ''
   }
 };
 

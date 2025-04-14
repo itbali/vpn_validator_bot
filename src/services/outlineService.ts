@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { VPNConfig, VPNMetric } from '../models';
+import { VPNConfig, VPNMetric, VPNServer } from '../models';
 import { VPNConfigInstance, VPNMetricInstance } from '../types/models';
 import config from '../config';
 import { formatBytes } from '../utils/formatters';
@@ -7,7 +7,7 @@ import https from 'https';
 
 interface OutlineKey {
   id: string;
-  name?: string;
+  name: string;
   password: string;
   port: number;
   method: string;
@@ -109,85 +109,190 @@ interface TransferMetricsResponse {
   bytesTransferred: number;
 }
 
+interface Config {
+  bot: {
+    token: string;
+  };
+  database: {
+    dialect: 'postgres';
+    url: string;
+  };
+  server: {
+    port: number;
+  };
+  monitoring: {
+    checkInterval: number;
+    thresholds: {
+      cpu: number;
+      ram: number;
+      disk: number;
+      traffic: number;
+    };
+  };
+  telegram: {
+    channelId: string;
+    channelUrl: string;
+    paidChannelId: string;
+    paidChannelUrl: string;
+    adminIds: number[];
+    checkMembershipInterval: number;
+  };
+  vpn?: {
+    outlineApiUrl?: string;
+    outlineCertSha256?: string;
+  };
+}
+
+interface ApiResponse<T> {
+  data: T;
+}
+
 class OutlineService {
-  private readonly apiUrl: string;
-  private readonly apiCertSha256: string;
+  private servers: Map<number, { apiUrl: string; apiCertSha256: string }> = new Map();
+  private config: Config;
+  private agent: https.Agent;
+  private defaultServerId: number = 1;
 
   constructor() {
-    console.log('Environment variables:', {
-      OUTLINE_API_URL: process.env.OUTLINE_API_URL,
-      OUTLINE_CERT_SHA256: process.env.OUTLINE_CERT_SHA256,
-      config_vpn: config.vpn
+    this.config = config;
+    this.agent = new https.Agent({
+      rejectUnauthorized: false
     });
-    this.apiUrl = config.vpn?.outlineApiUrl || process.env.OUTLINE_API_URL || '';
-    this.apiCertSha256 = config.vpn?.outlineCertSha256 || process.env.OUTLINE_CERT_SHA256 || '';
-    console.log('Initialized OutlineService with:', {
-      apiUrl: this.apiUrl,
-      apiCertSha256: this.apiCertSha256
-    });
+    this.loadServers();
   }
 
-  private async makeRequest<T>(method: string, endpoint: string, options: RequestOptions = {}): Promise<T> {
-    const url = `${this.apiUrl}${endpoint}`;
-    console.log('Making request to:', url);
-    console.log('Method:', method);
-    console.log('Data:', options.data);
-    console.log('Params:', options.params);
+  private async loadServers() {
+    const servers = await VPNServer.findAll({ where: { is_active: true } });
+    this.servers.clear();
+    
+    for (const server of servers) {
+      this.servers.set(server.id, {
+        apiUrl: server.outline_api_url,
+        apiCertSha256: server.outline_cert_sha256
+      });
+    }
 
-    try {
-      const response = await axios<T>({
-        method,
-        url,
-        data: options.data,
-        params: options.params,
-        httpsAgent: new https.Agent({
-          rejectUnauthorized: false,
-          ca: this.apiCertSha256
-        })
+    if (this.servers.size === 0 && this.config.vpn?.outlineApiUrl) {
+      // Добавляем сервер из конфига как резервный вариант
+      const defaultServer = await VPNServer.create({
+        name: 'Default Server',
+        location: 'Unknown',
+        outline_api_url: this.config.vpn.outlineApiUrl,
+        outline_cert_sha256: this.config.vpn.outlineCertSha256,
+        is_active: true
       });
 
+      this.servers.set(defaultServer.id, {
+        apiUrl: defaultServer.outline_api_url,
+        apiCertSha256: defaultServer.outline_cert_sha256
+      });
+    }
+  }
+
+  private getServerCredentials(serverId: number) {
+    const server = this.servers.get(serverId);
+    if (!server) {
+      throw new Error(`VPN server with ID ${serverId} not found`);
+    }
+    return server;
+  }
+
+  private async makeRequest<T>(serverId: number, method: string, path: string, data?: any, params?: any): Promise<T> {
+    const server = this.servers.get(serverId);
+    if (!server) {
+      throw new Error(`Server with ID ${serverId} not found`);
+    }
+
+    try {
+      console.log(`Making request to ${server.apiUrl}${path} with method ${method}`);
+      console.log('Request data:', data);
+      const response = await axios({
+        method,
+        url: `${server.apiUrl}${path}`,
+        data,
+        params,
+        httpsAgent: this.agent
+      });
+      console.log('Response:', response.data);
       return response.data;
     } catch (error: any) {
-      console.error('Outline API error:', error);
-      console.log('Response:', error.response?.data);
-      console.log('Status:', error.response?.status);
+      console.error('API request error:', error.response?.data || error.message);
+      throw new Error(`API request failed: ${error.message}`);
+    }
+  }
 
-      if (error.response?.status === 404) {
-        throw new Error('Resource not found');
+  async createKey(name: string, serverId: number, limit?: number): Promise<OutlineKey> {
+    try {
+      console.log(`Creating key for server ${serverId} with name ${name}`);
+      const response = await this.makeRequest<OutlineKey>(
+        serverId, 
+        'POST',
+        '/access-keys',
+        { name },
+        {}
+      );
+      console.log('Create key response:', response);
+
+      if (limit) {
+        await this.setDataLimit(parseInt(response.id), limit);
       }
 
-      throw new Error('Failed to communicate with Outline server');
+      return response;
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to create access key: ${error.message}`);
+      }
+      throw new Error('Failed to create access key: Unknown error');
     }
   }
 
-  async createKey(name?: string): Promise<OutlineKey> {
-    const response = await this.makeRequest<OutlineKey>('POST', '/access-keys');
-    if (name) {
-      await this.makeRequest<void>('PUT', `/access-keys/${response.id}/name`, { data: { name } });
-      response.name = name;
+  async deleteKey(keyId: string | number): Promise<void> {
+    try {
+      const numericKeyId = this.parseKeyId(keyId);
+      await this.makeRequest<void>(
+        1,
+        'DELETE',
+        `/access-keys/${numericKeyId}`,
+        {},
+        {}
+      );
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to delete key: ${error.message}`);
+      }
+      throw new Error('Failed to delete key: Unknown error');
     }
-    return response;
   }
 
-  async deleteKey(keyId: string): Promise<void> {
-    await this.makeRequest<void>('DELETE', `/access-keys/${keyId}`);
+  async getKeyById(configId: string): Promise<OutlineKey> {
+    const config = await VPNConfig.findOne({ where: { config_id: configId } });
+    if (!config || !config.server_id) {
+      throw new Error('Server ID not found for config');
+    }
+    return this.makeRequest<OutlineKey>(config.server_id, 'GET', `/access-keys/${parseInt(configId)}`, {}, {});
   }
 
-  async getKey(keyId: string): Promise<OutlineKey> {
-    return this.makeRequest('GET', `/access-keys/${keyId}`);
+  async getDataLimit(configId: string): Promise<DataLimit | null> {
+    const config = await VPNConfig.findOne({ where: { config_id: configId } });
+    if (!config || !config.server_id) {
+      throw new Error('Server ID not found for config');
+    }
+    return this.makeRequest<DataLimit | null>(
+      config.server_id,
+      'GET',
+      `/access-keys/${parseInt(configId)}/data-limit`,
+      {},
+      {}
+    );
   }
 
-  async getKeyDataLimit(keyId: string): Promise<DataLimit | null> {
-    return this.makeRequest('GET', `/access-keys/${keyId}/data-limit`);
-  }
-
-  async getKeyMetrics(keyId: string): Promise<{
+  async getKeyMetrics(serverId: number, keyId: string): Promise<{
     bytesTransferred: number;
     lastSeen?: number;
     deviceCount?: number;
   }> {
     try {
-      const metrics = await this.getDetailedMetrics();
+      const metrics = await this.getDetailedMetrics(serverId);
       const keyMetrics = metrics.accessKeys.find(key => key.id === keyId);
 
       if (!keyMetrics) {
@@ -207,55 +312,35 @@ class OutlineService {
     }
   }
 
-  async getMetrics(keyId: string | 'all'): Promise<{ bytesTransferred: number }> {
-    try {
-      // Получаем метрики за последние 30 дней
-      const endTime = new Date().getTime();
-      const startTime = endTime - (30 * 24 * 60 * 60 * 1000); // 30 дней назад
-
-      if (keyId === 'all') {
-        const configs = await VPNConfig.findAll({ where: { is_active: true } });
-        let totalBytes = 0;
-
-        for (const config of configs) {
-          try {
-            const response = await this.makeRequest<TransferMetricsResponse>('GET', `/metrics/transfer?accessKeyId=${config.config_id}&startTime=${startTime}&endTime=${endTime}`);
-            totalBytes += response.bytesTransferred || 0;
-          } catch (error: any) {
-            console.error(`Error getting metrics for key ${config.config_id}:`, error.message);
-          }
-        }
-
-        return { bytesTransferred: totalBytes };
+  async getMetrics(configId: string, serverId?: number): Promise<KeyMetrics> {
+    const config = await VPNConfig.findOne({ where: { config_id: configId } });
+    if (!serverId) {
+      if (!config || !config.server_id) {
+        throw new Error('Server ID not found for config');
       }
-
-      const config = await VPNConfig.findOne({
-        where: { config_id: keyId, is_active: true }
-      });
-
-      if (!config) {
-        return { bytesTransferred: 0 };
-      }
-
-      const response = await this.makeRequest<TransferMetricsResponse>('GET', `/metrics/transfer?accessKeyId=${keyId}&startTime=${startTime}&endTime=${endTime}`);
-      return { bytesTransferred: response.bytesTransferred || 0 };
-    } catch (error: any) {
-      console.error('Error in getMetrics:', error.message);
-      return { bytesTransferred: 0 };
+      serverId = config.server_id;
     }
+    return this.makeRequest<KeyMetrics>(
+      serverId,
+      'GET',
+      `/access-keys/${parseInt(configId)}/metrics`,
+      {},
+      {}
+    );
   }
 
-  async generateConfig(userId: string, userName?: string): Promise<VPNConfigInstance> {
+  async generateConfig(userId: string, serverId: number, userName?: string): Promise<VPNConfigInstance> {
     try {
       const keyName = userName ? 
         `@${userName} - ${userId}` : 
         `user_${userId}`;
 
-      const outlineKey = await this.createKey(keyName);
+      const outlineKey = await this.createKey(keyName, serverId);
 
       const vpnConfig = await VPNConfig.create({
         config_id: outlineKey.id,
         user_id: userId,
+        server_id: serverId,
         config_data: outlineKey.accessUrl,
         is_active: true,
         created_at: new Date()
@@ -280,7 +365,9 @@ class OutlineService {
       if (!config) return;
 
       try {
-        await this.deleteKey(config.config_id);
+        if (config.server_id) {
+          await this.makeRequest<void>(config.server_id, 'DELETE', `/access-keys/${config.config_id}`, {}, {});
+        }
       } catch (error) {
         console.error(`Failed to delete key ${config.config_id} from Outline server:`, error);
       }
@@ -308,7 +395,7 @@ class OutlineService {
         }
       });
 
-      const bytesTotal = metrics.bytesTransferred;
+      const bytesTotal = metrics.dataTransferred.bytes;
       await metric.update({
         bytes_received: bytesTotal / 2, // Примерное разделение на входящий/исходящий трафик
         bytes_sent: bytesTotal / 2,
@@ -325,21 +412,24 @@ class OutlineService {
   async startMetricsCollection(): Promise<void> {
     setInterval(async () => {
       try {
-        const metrics = await this.getDetailedMetrics();
-        for (const keyMetrics of metrics.accessKeys) {
-          const config = await VPNConfig.findOne({
-            where: { config_id: keyMetrics.id.toString(), is_active: true }
-          });
-
-          if (config) {
-            await VPNMetric.create({
-              config_id: config.config_id,
-              date: new Date().toISOString().split('T')[0],
-              bytes_received: keyMetrics.dataTransferred.bytes / 2,
-              bytes_sent: keyMetrics.dataTransferred.bytes / 2,
-              connection_time: keyMetrics.tunnelTime.seconds,
-              last_connected: new Date(keyMetrics.connection.lastTrafficSeen * 1000)
+        const servers = await this.getAvailableServers();
+        for (const server of servers) {
+          const metrics = await this.getDetailedMetrics(server.id);
+          for (const keyMetrics of metrics.accessKeys) {
+            const config = await VPNConfig.findOne({
+              where: { config_id: keyMetrics.id.toString(), is_active: true }
             });
+
+            if (config) {
+              await VPNMetric.create({
+                config_id: config.config_id,
+                date: new Date().toISOString().split('T')[0],
+                bytes_received: keyMetrics.dataTransferred.bytes / 2,
+                bytes_sent: keyMetrics.dataTransferred.bytes / 2,
+                connection_time: keyMetrics.tunnelTime.seconds,
+                last_connected: new Date(keyMetrics.connection.lastTrafficSeen * 1000)
+              });
+            }
           }
         }
       } catch (error) {
@@ -348,69 +438,51 @@ class OutlineService {
     }, 300000); // каждые 5 минут
   }
 
-  async validateAllKeys(): Promise<{
-    deactivatedKeys: Array<{id: string; userId: string}>;
-    totalChecked: number;
-  }> {
-    try {
-      const [outlineKeys, configs] = await Promise.all([
-        this.listKeys(),
-        VPNConfig.findAll({ where: { is_active: true } })
-      ]);
+  async validateAllKeys(): Promise<{ deactivatedKeys: Array<{ userId: string; configId: string }>; totalChecked: number }> {
+    const deactivatedKeys: Array<{ userId: string; configId: string }> = [];
+    const configs = await VPNConfig.findAll({ where: { is_active: true } });
 
-      const outlineKeyIds = new Set(outlineKeys.map(key => key.id));
-      const deactivatedKeys: Array<{id: string; userId: string}> = [];
-
-      for (const config of configs) {
-        if (!outlineKeyIds.has(config.config_id)) {
-          await config.update({ is_active: false });
-          deactivatedKeys.push({
-            id: config.config_id,
-            userId: config.user_id
-          });
+    for (const config of configs) {
+      try {
+        if (config.server_id) {
+          await this.getKeyById(config.config_id);
         }
+      } catch (error) {
+        await config.update({ is_active: false });
+        deactivatedKeys.push({ userId: config.user_id, configId: config.config_id });
       }
-
-      return {
-        deactivatedKeys,
-        totalChecked: configs.length
-      };
-    } catch (error) {
-      console.error('Error validating keys:', error);
-      throw error;
     }
+
+    return { deactivatedKeys, totalChecked: configs.length };
   }
 
-  async listKeys(): Promise<OutlineKey[]> {
-    const response = await this.makeRequest<{ accessKeys: OutlineKey[] }>('GET', '/access-keys');
+  async listKeys(serverId: number): Promise<OutlineKey[]> {
+    const response = await this.makeRequest<{ accessKeys: OutlineKey[] }>(serverId, 'GET', '/access-keys', {}, {});
     return response.accessKeys || [];
   }
 
   // Server methods
-  async getServerInfo(): Promise<ServerInfo> {
-    return this.makeRequest<ServerInfo>('GET', '/server');
+  async getServerInfo(serverId: number): Promise<ServerInfo> {
+    return this.makeRequest<ServerInfo>(serverId, 'GET', '/server', {}, {});
   }
 
   // Metrics methods
-  async getDetailedMetrics(): Promise<DetailedMetrics> {
+  async getDetailedMetrics(serverId: number): Promise<DetailedMetrics> {
     try {
-      // Используем относительное время - 30 дней назад
       const now = Math.floor(Date.now() / 1000);
-      const thirtyDaysAgo = now - (30 * 24 * 60 * 60); // 30 дней назад
+      const thirtyDaysAgo = now - (30 * 24 * 60 * 60);
       
-      console.log('Requesting metrics:', {
-        from: new Date(thirtyDaysAgo * 1000).toISOString(),
-        to: new Date(now * 1000).toISOString(),
-        startTime: thirtyDaysAgo,
-        endTime: now,
-        systemTime: new Date().toISOString()
-      });
-      
-      const response = await this.makeRequest<DetailedMetrics>('GET', '/experimental/server/metrics', {
-        params: {
-          since: (new Date(thirtyDaysAgo * 1000).toISOString())
-        }
-      });
+      const response = await this.makeRequest<DetailedMetrics>(
+        serverId,
+        'GET',
+        '/experimental/server/metrics',
+        {
+          params: {
+            since: (new Date(thirtyDaysAgo * 1000).toISOString())
+          }
+        },
+        {}
+      );
     
       console.log('Received metrics response:', {
         serverBandwidth: response.server.bandwidth,
@@ -448,9 +520,9 @@ class OutlineService {
     }
   }
 
-  async getTransferMetrics(): Promise<{ bytesTransferredByUserId: { [key: string]: number } }> {
+  async getTransferMetrics(serverId: number): Promise<{ bytesTransferredByUserId: { [key: string]: number } }> {
     try {
-      return await this.makeRequest<TransferMetrics>('GET', '/metrics/transfer');
+      return await this.makeRequest<TransferMetrics>(serverId, 'GET', '/metrics/transfer', {}, {});
     } catch (error) {
       console.error('Error getting transfer metrics:', error);
       return { bytesTransferredByUserId: {} };
@@ -459,15 +531,80 @@ class OutlineService {
 
   // Access key methods
   async renameKey(keyId: string, name: string): Promise<void> {
-    await this.makeRequest<void>('PUT', `/access-keys/${keyId}/name`, { data: { name } });
+    await this.makeRequest<void>(Number(1), 'PUT', `/access-keys/${this.parseKeyId(keyId)}/name`, { data: { name } }, {});
   }
 
-  async setKeyDataLimit(keyId: string, bytes: number): Promise<void> {
-    await this.makeRequest<void>('PUT', `/access-keys/${keyId}/data-limit`, { data: { limit: { bytes } } });
+  async setDataLimit(keyId: string | number, limitBytes: number): Promise<void> {
+    try {
+      const numericKeyId = this.parseKeyId(keyId);
+      await this.makeRequest<void>(
+        Number(1),
+        'PUT',
+        `/access-keys/${numericKeyId}/data-limit`,
+        { bytes: limitBytes },
+        {}
+      );
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to set data limit: ${error.message}`);
+      }
+      throw new Error('Failed to set data limit: Unknown error');
+    }
   }
 
-  async removeKeyDataLimit(keyId: string): Promise<void> {
-    await this.makeRequest<void>('DELETE', `/access-keys/${keyId}/data-limit`);
+  async removeDataLimit(keyId: string | number): Promise<void> {
+    try {
+      const numericKeyId = this.parseKeyId(keyId);
+      await this.makeRequest<void>(
+        Number(1),
+        'DELETE',
+        `/access-keys/${numericKeyId}/data-limit`,
+        {},
+        {}
+      );
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        throw new Error(`Failed to remove data limit: ${error.message}`);
+      }
+      throw new Error('Failed to remove data limit: Unknown error');
+    }
+  }
+
+  async getAvailableServers() {
+    return VPNServer.findAll({ where: { is_active: true } });
+  }
+
+  async addServer(name: string, location: string, apiUrl: string, certSha256: string) {
+    const server = await VPNServer.create({
+      name,
+      location,
+      outline_api_url: apiUrl,
+      outline_cert_sha256: certSha256,
+      is_active: true
+    });
+
+    await this.loadServers();
+    return server;
+  }
+
+  async removeServer(serverId: number) {
+    await VPNServer.update(
+      { is_active: false },
+      { where: { id: serverId } }
+    );
+
+    await this.loadServers();
+  }
+
+  private parseKeyId(keyId: string | number): number {
+    if (typeof keyId === 'number') {
+      return keyId;
+    }
+    const parsed = parseInt(keyId);
+    if (isNaN(parsed)) {
+      throw new Error('Invalid key ID format');
+    }
+    return parsed;
   }
 }
 

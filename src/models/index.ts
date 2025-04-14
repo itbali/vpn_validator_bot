@@ -1,5 +1,5 @@
 import { Sequelize, DataTypes } from 'sequelize';
-import { IUser, IVPNConfig, IVPNMetric, IServerMetric } from '../types';
+import { IUser, IVPNConfig, IVPNMetric, IServerMetric, IVPNServer } from '../types';
 import config from '../config';
 
 const sequelize = new Sequelize(config.database.url, {
@@ -7,6 +7,11 @@ const sequelize = new Sequelize(config.database.url, {
   logging: false,
   dialectOptions: {
     ssl: false
+  },
+  define: {
+    underscored: true,
+    createdAt: 'created_at',
+    updatedAt: 'updated_at'
   }
 });
 
@@ -51,6 +56,14 @@ const VPNConfig = sequelize.define<IVPNConfig>('VPNConfig', {
   user_id: {
     type: DataTypes.STRING,
     allowNull: false
+  },
+  server_id: {
+    type: DataTypes.INTEGER,
+    allowNull: true,
+    references: {
+      model: 'VPNServers',
+      key: 'id'
+    }
   },
   config_data: {
     type: DataTypes.TEXT,
@@ -119,16 +132,44 @@ const ServerMetric = sequelize.define<IServerMetric>('ServerMetric', {
   }
 });
 
+const VPNServer = sequelize.define<IVPNServer>('VPNServer', {
+  name: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  location: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  outline_api_url: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  outline_cert_sha256: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  is_active: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: true
+  }
+}, {
+  tableName: 'VPNServers'
+});
+
 User.hasMany(VPNConfig, { foreignKey: 'user_id', sourceKey: 'telegram_id' });
 VPNConfig.belongsTo(User, { foreignKey: 'user_id', targetKey: 'telegram_id' });
 VPNConfig.hasMany(VPNMetric, { foreignKey: 'config_id', sourceKey: 'config_id' });
 VPNMetric.belongsTo(VPNConfig, { foreignKey: 'config_id', targetKey: 'config_id' });
+VPNServer.hasMany(VPNConfig, { foreignKey: 'server_id' });
+VPNConfig.belongsTo(VPNServer, { foreignKey: 'server_id' });
 
 export {
   User,
   VPNConfig,
   VPNMetric,
-  ServerMetric
+  ServerMetric,
+  VPNServer
 };
 
 export { sequelize }; 

@@ -24,16 +24,16 @@ export class UserVpnController {
         return;
       }
 
-      const key = await outlineService.getKey(config.config_id);
+      const key = await outlineService.getKeyById(config.config_id);
       const metrics = await outlineService.getMetrics(config.config_id);
-      const dataLimit = await outlineService.getKeyDataLimit(config.config_id);
+      const dataLimit = await outlineService.getDataLimit(config.config_id);
 
       let message = `🔑 Ваш VPN ключ:\n\n`;
       message += `📡 Адрес подключения: ${key.accessUrl}\n`;
-      message += `📊 Использовано трафика: ${formatBytes(metrics.bytesTransferred)}\n`;
+      message += `📊 Использовано трафика: ${formatBytes(metrics.dataTransferred.bytes)}\n`;
       
       if (dataLimit) {
-        const percentUsed = (metrics.bytesTransferred / dataLimit.bytes) * 100;
+        const percentUsed = (metrics.dataTransferred.bytes / dataLimit.bytes) * 100;
         message += `\n📈 Лимит трафика: ${formatBytes(dataLimit.bytes)}\n`;
         message += `📊 Использовано: ${percentUsed.toFixed(1)}%\n`;
       }
@@ -66,14 +66,14 @@ export class UserVpnController {
       }
 
       const metrics = await outlineService.getMetrics(config.config_id);
-      const dataLimit = await outlineService.getKeyDataLimit(config.config_id);
+      const dataLimit = await outlineService.getDataLimit(config.config_id);
 
       let message = `📊 Статистика использования VPN:\n\n`;
-      message += `📈 Всего трафика: ${formatBytes(metrics.bytesTransferred)}\n`;
+      message += `📊 Использовано трафика: ${formatBytes(metrics.dataTransferred.bytes)}\n`;
       
       if (dataLimit) {
-        const remaining = dataLimit.bytes - metrics.bytesTransferred;
-        const percentUsed = (metrics.bytesTransferred / dataLimit.bytes) * 100;
+        const remaining = dataLimit.bytes - metrics.dataTransferred.bytes;
+        const percentUsed = (metrics.dataTransferred.bytes / dataLimit.bytes) * 100;
         message += `\n🎯 Лимит: ${formatBytes(dataLimit.bytes)}\n`;
         message += `✨ Осталось: ${formatBytes(remaining)}\n`;
         message += `📊 Использовано: ${percentUsed.toFixed(1)}%\n`;
@@ -85,4 +85,4 @@ export class UserVpnController {
       await ctx.reply('Произошла ошибка при получении статистики');
     }
   }
-} 
+}

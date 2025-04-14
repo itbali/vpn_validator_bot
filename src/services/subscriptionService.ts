@@ -12,7 +12,7 @@ class SubscriptionService {
       );
 
       const validStatuses = ['member', 'administrator', 'creator'];
-      let isSubscribed = validStatuses.includes(regularMember.status);
+      const isRegularSubscribed = validStatuses.includes(regularMember.status);
       let isPaidSubscribed = false;
 
       if (config.telegram.paidChannelId) {
@@ -21,13 +21,20 @@ class SubscriptionService {
           typeof userId === 'string' ? Number(userId) : userId
         );
         isPaidSubscribed = validStatuses.includes(paidMember.status);
-        isSubscribed = isSubscribed || isPaidSubscribed;
       }
+
+      // Проверяем, является ли пользователь администратором
+      const isAdmin = config.telegram.adminIds.includes(
+        typeof userId === 'string' ? Number(userId) : userId
+      );
+
+      // Если пользователь админ, считаем его подписанным на все каналы
+      const isSubscribed = isAdmin || (isRegularSubscribed && (isPaidSubscribed || !config.telegram.paidChannelId));
 
       await User.update(
         {
           is_subscribed: isSubscribed,
-          is_paid_subscribed: isPaidSubscribed,
+          is_paid_subscribed: isAdmin || isPaidSubscribed,
           subscription_check: new Date()
         },
         {
@@ -44,13 +51,22 @@ class SubscriptionService {
 
   async checkMentorSubscription(userId: string | number): Promise<boolean> {
     try {
-      const member = await bot.getChatMember(
+      const regularMember = await bot.getChatMember(
         Number(config.telegram.channelId),
         typeof userId === 'string' ? Number(userId) : userId
       );
-      const isSubscribed = ['member', 'administrator', 'creator'].includes(member.status);
+      const isRegularSubscribed = ['member', 'administrator', 'creator'].includes(regularMember.status);
 
-      return isSubscribed;
+      if (config.telegram.paidChannelId) {
+        const paidMember = await bot.getChatMember(
+          Number(config.telegram.paidChannelId),
+          typeof userId === 'string' ? Number(userId) : userId
+        );
+        const isPaidSubscribed = ['member', 'administrator', 'creator'].includes(paidMember.status);
+        return isRegularSubscribed && isPaidSubscribed;
+      }
+
+      return isRegularSubscribed;
     } catch (error) {
       console.error('Error checking mentor subscription:', error);
       return false;
