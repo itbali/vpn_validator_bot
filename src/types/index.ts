@@ -70,9 +70,7 @@ export interface Config {
   };
   telegram: {
     channelId: string;
-    channelUrl: string;
     paidChannelId: string;
-    paidChannelUrl: string;
     adminIds: number[];
     checkMembershipInterval: number;
   };

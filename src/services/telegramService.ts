@@ -531,7 +531,7 @@ bot.on('message', async (msg) => {
         const isMentorSubscriber = await subscriptionService.checkMentorSubscription(chatId);
         if (!isMentorSubscriber) {
           await sendBotMessage(
-            `Для доступа к менторингу необходимо подписаться на канал: ${config.telegram.channelUrl}`
+            `Для получения информации о менторинге, посетите <a href="https://alex-diuzhev.ru/">сайт ментора</a>`
           );
           return;
         }
