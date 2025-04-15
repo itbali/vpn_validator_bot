@@ -117,6 +117,11 @@ const createServerSelectionKeyboard = async (): Promise<TelegramBot.SendMessageO
 bot.onText(/\/start/, async (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
   const username = msg.from?.username;
+  const isPrivate = msg.chat.type === 'private';
+
+  if (!isPrivate) {
+    return;
+  }
 
   console.log(`👤 Пользователь ${username || 'без username'} (ID: ${chatId}) запустил бота`);
 
@@ -738,7 +743,12 @@ bot.on('message', async (msg) => {
 
 bot.onText(/\/help/, (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
-  
+  const isPrivate = msg.chat.type === 'private';
+
+  if (!isPrivate) {
+    return;
+  }
+
   if (!msg.from) {
     return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
   }
@@ -760,6 +770,12 @@ bot.onText(/\/help/, (msg: TelegramBot.Message) => {
 
 bot.onText(/\/mentor/, (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
+  const isPrivate = msg.chat.type === 'private';
+
+  if (!isPrivate) {
+    return;
+  }
+
   const mentorInfo = `
 Информация о менторе:
 - Опыт работы: 5+ лет
@@ -779,7 +795,12 @@ bot.onText(/\/mentor/, (msg: TelegramBot.Message) => {
 
 bot.onText(/\/regenerate/, async (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
-  
+  const isPrivate = msg.chat.type === 'private';
+
+  if (!isPrivate) {
+    return;
+  }
+
   if (!msg.from) {
     return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
   }
@@ -823,7 +844,12 @@ bot.onText(/\/regenerate/, async (msg: TelegramBot.Message) => {
 
 bot.onText(/\/delete/, async (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
-  
+  const isPrivate = msg.chat.type === 'private';
+
+  if (!isPrivate) {
+    return;
+  }
+
   if (!msg.from) {
     return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
   }
@@ -851,6 +877,12 @@ bot.onText(/\/delete/, async (msg: TelegramBot.Message) => {
 
 bot.onText(/\/faq/, (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
+  const isPrivate = msg.chat.type === 'private';
+
+  if (!isPrivate) {
+    return;
+  }
+
   const faqMessage = `
 Частые вопросы:
 
@@ -879,6 +911,11 @@ bot.onText(/\/faq/, (msg: TelegramBot.Message) => {
 
 bot.onText(/\/support/, (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
+  const isPrivate = msg.chat.type === 'private';
+
+  if (!isPrivate) {
+    return;
+  }
   
   if (!msg.from) {
     return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
@@ -901,7 +938,12 @@ bot.onText(/\/support/, (msg: TelegramBot.Message) => {
 
 bot.onText(/\/stats/, async (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
-  
+  const isPrivate = msg.chat.type === 'private';
+
+  if (!isPrivate) {
+    return;
+  }
+
   if (!msg.from) {
     return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
   }
@@ -947,6 +989,11 @@ RAM: ${serverStatus.metrics.ram_usage.toFixed(1)}%
 
 bot.onText(/\/admin/, async (msg: TelegramBot.Message) => {
   const chatId = msg.chat.id;
+  const isPrivate = msg.chat.type === 'private';
+
+  if (!isPrivate) {
+    return;
+  }
   
   if (!msg.from) {
     return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
@@ -969,6 +1016,11 @@ bot.onText(/\/admin/, async (msg: TelegramBot.Message) => {
 // Добавляем команды для администраторов
 bot.onText(/\/addserver/, async (msg) => {
   const chatId = msg.chat.id;
+  const isPrivate = msg.chat.type === 'private';
+
+  if (!isPrivate) {
+    return;
+  }
   
   if (!msg.from) {
     return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
@@ -1003,6 +1055,11 @@ bot.onText(/\/addserver/, async (msg) => {
 
 bot.onText(/\/removeserver/, async (msg) => {
   const chatId = msg.chat.id;
+  const isPrivate = msg.chat.type === 'private';
+
+  if (!isPrivate) {
+    return;
+  }
   
   if (!msg.from) {
     return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
@@ -1034,6 +1091,12 @@ bot.onText(/\/removeserver/, async (msg) => {
 
 bot.onText(/\/listservers/, async (msg) => {
   const chatId = msg.chat.id;
+  const isPrivate = msg.chat.type === 'private';
+
+  if (!isPrivate) {
+    return;
+  }
+
   const username = msg.from?.username;
   
   if (!msg.from) {
