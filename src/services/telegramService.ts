@@ -531,7 +531,10 @@ bot.on('message', async (msg) => {
         const isMentorSubscriber = await subscriptionService.checkMentorSubscription(chatId);
         if (!isMentorSubscriber) {
           await sendBotMessage(
-            `Для получения информации о менторинге, посетите <a href="https://alex-diuzhev.ru/">сайт ментора</a>`
+            `Для получения информации о менторинге, посетите <a href="https://alex-diuzhev.ru/">сайт ментора</a>`,
+            {
+              parse_mode: 'HTML',
+            }
           );
           return;
         }

@@ -35,8 +35,11 @@ export const startHandler: HandlerType = async ({msg, isAdmin, bot, User, config
           if (!user?.is_subscribed || !user?.is_paid_subscribed) {
             return bot.sendMessage(
               chatId,
-              `Для доступа к VPN необходимо подписаться на канал: ${config?.telegram.paidChannelUrl} 
-              Или быть учеником на менторинге по программированию`
+              `Для доступа к VPN необходимо подписаться на бусти: <a href="https://boosty.to/sovit">alex-diuzhev.ru</a>
+              Или быть учеником на менторинге по программированию`,
+              {
+                parse_mode: 'HTML',
+              }
             );
           }
       
