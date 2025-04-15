@@ -5,7 +5,6 @@ import { OutlineService } from '../outlineService';
 import { SubscriptionService } from '../subscriptionService';
 import { MonitoringService } from '../monitoringService';
 
-type isAdminType = (chatId: number) => Promise<boolean>;
 type HelperParams = {
     msg: Message,  
     bot: TelegramBot,

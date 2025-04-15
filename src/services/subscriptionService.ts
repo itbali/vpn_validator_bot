@@ -15,7 +15,7 @@ const updateUserSubscription = async (userId: string | number, isSubscribed: boo
 }
 
 export class SubscriptionService {
-  async checkUserSubscription(userId: string | number): Promise<boolean> {
+  async checkPaidSubscription(userId: string | number): Promise<boolean> {
     try {
       const member = await bot.getChatMember(
         Number(config.telegram.paidChannelId),
@@ -41,7 +41,7 @@ export class SubscriptionService {
       );
       const isRegularSubscribed = ['member', 'administrator', 'creator'].includes(regularMember.status);
 
-      await updateUserSubscription(userId, isRegularSubscribed, false);
+      await updateUserSubscription(userId, isRegularSubscribed, await this.checkPaidSubscription(userId));
 
       return isRegularSubscribed;
     } catch (error) {
@@ -59,7 +59,7 @@ export class SubscriptionService {
     const { deactivatedKeys } = await outlineService.validateAllKeys();
 
     for (const user of users) {
-      const isSubscribed = await this.checkUserSubscription(user.telegram_id) || 
+      const isSubscribed = await this.checkPaidSubscription(user.telegram_id) || 
       await this.checkMentorSubscription(user.telegram_id);
       
       if (!isSubscribed && user.is_subscribed) {

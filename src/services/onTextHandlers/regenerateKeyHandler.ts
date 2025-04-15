@@ -14,7 +14,10 @@ export const regenerateKeyHandler: HandlerType = async ({msg, bot, subscriptionS
     }
   
     try {
-      const isSubscribed = await subscriptionService?.checkUserSubscription(chatId);
+      const isPaidSubscribed = await subscriptionService?.checkPaidSubscription(chatId);
+      const isMentoringSubscribed = await subscriptionService?.checkMentorSubscription(chatId);
+      const isSubscribed = isPaidSubscribed || isMentoringSubscribed;
+      
       if (!isSubscribed) {
         return bot.sendMessage(chatId, 'Необходимо подписаться на канал для использования этой команды.');
       }

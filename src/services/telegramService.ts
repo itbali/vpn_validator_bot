@@ -49,7 +49,6 @@ const adminKeyboard: TelegramBot.SendMessageOptions = {
 
 const isAdmin = async (chatId: number): Promise<boolean> => {
   try {
-    // Проверяем, есть ли пользователь в списке администраторов
     if (config.telegram.adminIds.includes(chatId)) {
       return true;
     }
@@ -69,7 +68,9 @@ const isAdmin = async (chatId: number): Promise<boolean> => {
     const channelId = config.telegram.channelId;
     const paidChannelId = config.telegram.paidChannelId;  
     const chatMember = await bot.getChatMember(channelId, chatId);
+    console.log({chatMember});
     const paidChatMember = await bot.getChatMember(paidChannelId, chatId);
+    console.log({paidChatMember});
     const isAdminStatus = ['creator', 'administrator'].includes(chatMember.status) || ['creator', 'administrator'].includes(paidChatMember.status);
     return isAdminStatus;
   } catch (error) {
@@ -164,7 +165,9 @@ bot.on('message', async (msg) => {
     }
 
     // Обновляем статус подписки
-    const isSubscribed = await subscriptionService.checkUserSubscription(chatId);
+    const isPaidSubscribed = await subscriptionService.checkPaidSubscription(chatId);
+    const isMentoringSubscribed = await subscriptionService.checkMentorSubscription(chatId);
+    const isSubscribed = isPaidSubscribed || isMentoringSubscribed;
     
     if (!user.is_active) {
       await sendBotMessage('Ваш аккаунт не активен. Обратитесь к администратору.');
@@ -713,3 +716,27 @@ bot.onText(/\/addserver/, async (msg) => addServerHandler({msg, bot, outlineServ
 bot.onText(/\/removeserver/, async (msg) => removeServerHandler({msg, bot, isAdmin: await isAdmin(msg.chat.id), outlineService}));
 
 bot.onText(/\/listservers/, async (msg) => listServersHandler({msg, bot, outlineService, isAdmin: await isAdmin(msg.chat.id)}));
+
+// Обработка ошибок подключения
+bot.on('polling_error', async (error: any) => {
+  console.error('Polling error:', error.message);
+  
+  // Проверяем наличие кода ошибки и его значение
+  if (error && typeof error === 'object' && 'code' in error &&
+      (error.code === 'EFATAL' || error.code === 'ETIMEDOUT' || error.code === 'EAI_AGAIN')) {
+    console.log('Connection error detected, attempting to reconnect in 10 seconds...');
+    
+    // Останавливаем текущий поллинг
+    await bot.stopPolling();
+    
+    // Ждем 10 секунд перед повторным подключением
+    setTimeout(async () => {
+      try {
+        await bot.startPolling();
+        console.log('Successfully reconnected to Telegram API');
+      } catch (error) {
+        console.error('Failed to reconnect:', error instanceof Error ? error.message : 'Unknown error');
+      }
+    }, 10000);
+  }
+});
