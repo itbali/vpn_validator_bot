@@ -3,44 +3,28 @@ import config from '../config';
 import { bot } from './telegramService';
 import { outlineService } from './outlineService';
 
+const updateUserSubscription = async (userId: string | number, isSubscribed: boolean, isPaidSubscribed: boolean) => {
+  await User.update(
+    { 
+      subscription_check: new Date(), 
+      is_subscribed: isSubscribed,
+      is_paid_subscribed: isPaidSubscribed
+    },
+    { where: { telegram_id: userId.toString() } }
+  );
+}
+
 export class SubscriptionService {
   async checkUserSubscription(userId: string | number): Promise<boolean> {
     try {
-      const regularMember = await bot.getChatMember(
-        Number(config.telegram.channelId),
+      const member = await bot.getChatMember(
+        Number(config.telegram.paidChannelId),
         typeof userId === 'string' ? Number(userId) : userId
       );
 
-      const validStatuses = ['member', 'administrator', 'creator'];
-      const isRegularSubscribed = validStatuses.includes(regularMember.status);
-      let isPaidSubscribed = false;
+      const isSubscribed = ['member', 'administrator', 'creator'].includes(member.status);
 
-      if (config.telegram.paidChannelId) {
-        const paidMember = await bot.getChatMember(
-          Number(config.telegram.paidChannelId),
-          typeof userId === 'string' ? Number(userId) : userId
-        );
-        isPaidSubscribed = validStatuses.includes(paidMember.status);
-      }
-
-      // Проверяем, является ли пользователь администратором
-      const isAdmin = config.telegram.adminIds.includes(
-        typeof userId === 'string' ? Number(userId) : userId
-      );
-
-      // Если пользователь админ, считаем его подписанным на все каналы
-      const isSubscribed = isAdmin || (isRegularSubscribed && (isPaidSubscribed || !config.telegram.paidChannelId));
-
-      await User.update(
-        {
-          is_subscribed: isSubscribed,
-          is_paid_subscribed: isAdmin || isPaidSubscribed,
-          subscription_check: new Date()
-        },
-        {
-          where: { telegram_id: userId.toString() }
-        }
-      );
+      await updateUserSubscription(userId, isSubscribed, isSubscribed);
 
       return isSubscribed;
     } catch (error) {
@@ -57,14 +41,7 @@ export class SubscriptionService {
       );
       const isRegularSubscribed = ['member', 'administrator', 'creator'].includes(regularMember.status);
 
-      if (config.telegram.paidChannelId) {
-        const paidMember = await bot.getChatMember(
-          Number(config.telegram.paidChannelId),
-          typeof userId === 'string' ? Number(userId) : userId
-        );
-        const isPaidSubscribed = ['member', 'administrator', 'creator'].includes(paidMember.status);
-        return isRegularSubscribed && isPaidSubscribed;
-      }
+      await updateUserSubscription(userId, isRegularSubscribed, false);
 
       return isRegularSubscribed;
     } catch (error) {
@@ -82,7 +59,8 @@ export class SubscriptionService {
     const { deactivatedKeys } = await outlineService.validateAllKeys();
 
     for (const user of users) {
-      const isSubscribed = await this.checkUserSubscription(user.telegram_id);
+      const isSubscribed = await this.checkUserSubscription(user.telegram_id) || 
+      await this.checkMentorSubscription(user.telegram_id);
       
       if (!isSubscribed && user.is_subscribed) {
         // Деактивируем VPN если пользователь отписался

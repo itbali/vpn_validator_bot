@@ -16,11 +16,10 @@ export const startHandler: HandlerType = async ({msg, isAdmin, bot, User, config
         }
       
         try {
-          const isUserAdmin = await isAdmin?.(chatId);
           console.log(`📝 Статус пользователя ${chatId}:`, {
             username: username,
-            isAdmin: isUserAdmin,
-            isChatAdmin: isUserAdmin
+            isAdmin: isAdmin,
+            isChatAdmin: isAdmin
           });
       
           const user = (await User?.findOrCreate({
@@ -33,17 +32,10 @@ export const startHandler: HandlerType = async ({msg, isAdmin, bot, User, config
             },
           }))?.[0];
       
-          if (!user?.is_subscribed) {
+          if (!user?.is_subscribed || !user?.is_paid_subscribed) {
             return bot.sendMessage(
               chatId,
-              `Для доступа к VPN необходимо подписаться на канал: ${config?.telegram.channelUrl}`
-            );
-          }
-      
-          if (!user?.is_paid_subscribed) {
-            return bot.sendMessage(
-              chatId,
-              `Для доступа к VPN необходимо подписаться на платный канал: ${config?.telegram.paidChannelUrl}
+              `Для доступа к VPN необходимо подписаться на канал: ${config?.telegram.paidChannelUrl} 
               Или быть учеником на менторинге по программированию`
             );
           }
@@ -52,9 +44,9 @@ export const startHandler: HandlerType = async ({msg, isAdmin, bot, User, config
             return bot.sendMessage(chatId, 'Ваш аккаунт не активен. Обратитесь к администратору.');
           }
       
-          if (user?.is_admin !== isUserAdmin) {
+          if (user?.is_admin !== isAdmin) {
             await User?.update(
-              { is_admin: isUserAdmin },
+              { is_admin: isAdmin },
               { where: { telegram_id: chatId.toString() } }
             );
           }

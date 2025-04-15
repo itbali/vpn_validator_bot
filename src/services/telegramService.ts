@@ -67,8 +67,11 @@ const isAdmin = async (chatId: number): Promise<boolean> => {
     }
 
     const channelId = config.telegram.channelId;
+    const paidChannelId = config.telegram.paidChannelId;  
     const chatMember = await bot.getChatMember(channelId, chatId);
-    return ['creator', 'administrator'].includes(chatMember.status);
+    const paidChatMember = await bot.getChatMember(paidChannelId, chatId);
+    const isAdminStatus = ['creator', 'administrator'].includes(chatMember.status) || ['creator', 'administrator'].includes(paidChatMember.status);
+    return isAdminStatus;
   } catch (error) {
     console.error('Error checking admin status:', error);
     return false;
