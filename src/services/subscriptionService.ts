@@ -28,7 +28,7 @@ export class SubscriptionService {
 
       return isSubscribed;
     } catch (error) {
-      console.error('Error checking subscription:', error);
+      console.error('Error checking paid subscription:', error);
       return false;
     }
   }
