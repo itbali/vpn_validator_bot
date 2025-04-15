@@ -3,7 +3,7 @@ import config from '../config';
 import { bot } from './telegramService';
 import { outlineService } from './outlineService';
 
-class SubscriptionService {
+export class SubscriptionService {
   async checkUserSubscription(userId: string | number): Promise<boolean> {
     try {
       const regularMember = await bot.getChatMember(

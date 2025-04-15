@@ -5,6 +5,18 @@ import { subscriptionService } from './subscriptionService';
 import config from '../config';
 import { MonitoringService } from './monitoringService';
 import { formatBytes } from '../utils/formatters';
+import { startHandler } from './onTextHandlers/startHandler';
+import { helpHandler } from './onTextHandlers/helpHandler';
+import { mentorHandler } from './onTextHandlers/mentorHandler';
+import { regenerateKeyHandler } from './onTextHandlers/regenerateKeyHandler';
+import { deleteHandler } from './onTextHandlers/deleteHandler';
+import { faqHandler } from './onTextHandlers/faqHandler';
+import { supportHandler } from './onTextHandlers/supportHandler';
+import { statsHandler } from './onTextHandlers/statsHandler';
+import { adminHandler } from './onTextHandlers/adminHandler';
+import { addServerHandler } from './onTextHandlers/addServerHandler';
+import { removeServerHandler } from './onTextHandlers/removeServerHandler';
+import { listServersHandler } from './onTextHandlers/listServersHandler';
 
 interface ServerDialogState {
   step: 'name' | 'location' | 'api_url' | 'cert_sha256';
@@ -27,7 +39,8 @@ const adminKeyboard: TelegramBot.SendMessageOptions = {
     keyboard: [
       [{ text: '🔑 Управление ключами' }, { text: '🔄 Проверить ключи' }],
       [{ text: '📊 Статистика сервера' }, { text: '👥 Пользователи' }],
-      [{ text: '➕ Добавить сервер' }, { text: '📋 Список серверов' }],
+      [{ text: '⊕ Добавить сервер' }, { text: '📋 Список серверов' }],
+      [{ text: '⚙️ Текущий конфиг' }],
       [{ text: '◀️ Назад' }]
     ],
     resize_keyboard: true
@@ -114,72 +127,7 @@ const createServerSelectionKeyboard = async (): Promise<TelegramBot.SendMessageO
   };
 };
 
-bot.onText(/\/start/, async (msg: TelegramBot.Message) => {
-  const chatId = msg.chat.id;
-  const username = msg.from?.username;
-  const isPrivate = msg.chat.type === 'private';
-
-  if (!isPrivate) {
-    return;
-  }
-
-  console.log(`👤 Пользователь ${username || 'без username'} (ID: ${chatId}) запустил бота`);
-
-  if (!msg.from) {
-    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
-  }
-
-  try {
-    const isUserAdmin = await isAdmin(chatId);
-    console.log(`📝 Статус пользователя ${chatId}:`, {
-      username: username,
-      isAdmin: isUserAdmin,
-      isChatAdmin: isUserAdmin
-    });
-
-    const [user] = await User.findOrCreate({
-      where: { telegram_id: String(msg.from.id) },
-      defaults: {
-        telegram_id: String(msg.from.id),
-        username: msg.from.username,
-        first_name: msg.from.first_name,
-        last_name: msg.from.last_name,
-      },
-    });
-
-    if (!user.is_subscribed) {
-      return bot.sendMessage(
-        chatId,
-        `Для доступа к VPN необходимо подписаться на канал: ${config.telegram.channelUrl}`
-      );
-    }
-
-    if (!user.is_paid_subscribed) {
-      return bot.sendMessage(
-        chatId,
-        `Для доступа к VPN необходимо подписаться на платный канал: ${config.telegram.paidChannelUrl}
-        Или быть учеником на менторинге по программированию`
-      );
-    }
-
-    if (!user.is_active) {
-      return bot.sendMessage(chatId, 'Ваш аккаунт не активен. Обратитесь к администратору.');
-    }
-
-    if (user.is_admin !== isUserAdmin) {
-      await User.update(
-        { is_admin: isUserAdmin },
-        { where: { telegram_id: chatId.toString() } }
-      );
-    }
-
-    const keyboard = await mainKeyboard(chatId);
-    await bot.sendMessage(chatId, 'Добро пожаловать! Выберите действие:', keyboard);
-  } catch (error) {
-    console.error('Error in /start command:', error);
-    bot.sendMessage(chatId, 'Произошла ошибка. Попробуйте позже.');
-  }
-});
+bot.onText(/\/start/, async (msg) => startHandler({msg, isAdmin: await isAdmin(msg.chat.id), bot, User, config, keyboard: await mainKeyboard(msg.chat.id)}));
 
 // Обработчик текстовых сообщений для кнопок меню
 bot.on('message', async (msg) => {
@@ -741,395 +689,24 @@ bot.on('message', async (msg) => {
   }
 });
 
-bot.onText(/\/help/, (msg: TelegramBot.Message) => {
-  const chatId = msg.chat.id;
-  const isPrivate = msg.chat.type === 'private';
+bot.onText(/\/help/, (msg: TelegramBot.Message) => helpHandler({msg, bot}));
 
-  if (!isPrivate) {
-    return;
-  }
+bot.onText(/\/mentor/, (msg: TelegramBot.Message) => mentorHandler({msg, bot}));
 
-  if (!msg.from) {
-    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
-  }
+bot.onText(/\/regenerate/, async (msg: TelegramBot.Message) => regenerateKeyHandler({msg, bot, subscriptionService, VPNConfig, outlineService}));
 
-  const helpMessage = `
-Доступные команды:
-/start - Начать работу с ботом
-/help - Показать это сообщение
-/mentor - Информация о менторе и услугах
-/status - Проверить статус вашего VPN
-/regenerate - Перевыпустить ключ
-/delete - Удалить текущий ключ
-/faq - Частые вопросы по VPN
-/support - Техническая поддержка
-/stats - Статистика использования VPN
-`;
-  bot.sendMessage(chatId, helpMessage);
-});
+bot.onText(/\/delete/, async (msg: TelegramBot.Message) => deleteHandler({msg, bot, outlineService}));
 
-bot.onText(/\/mentor/, (msg: TelegramBot.Message) => {
-  const chatId = msg.chat.id;
-  const isPrivate = msg.chat.type === 'private';
+bot.onText(/\/faq/, (msg: TelegramBot.Message) => faqHandler({msg, bot}));
 
-  if (!isPrivate) {
-    return;
-  }
+bot.onText(/\/support/, (msg: TelegramBot.Message) => supportHandler({msg, bot}));
 
-  const mentorInfo = `
-Информация о менторе:
-- Опыт работы: 5+ лет
-- Специализация: Backend разработка
-- Технологии: Node.js, Python, DevOps
+bot.onText(/\/stats/, async (msg: TelegramBot.Message) => statsHandler({msg, bot, VPNConfig, outlineService, User, monitoringService}));
 
-Доступные услуги:
-1. Индивидуальные консультации
-2. Код-ревью
-3. Помощь с проектами
-4. Карьерное консультирование
+bot.onText(/\/admin/, async (msg: TelegramBot.Message) => adminHandler({msg, bot, isAdmin: await isAdmin(msg.chat.id), adminKeyboard}));
 
-Для записи на консультацию используйте /support
-`;
-  bot.sendMessage(chatId, mentorInfo);
-});
+bot.onText(/\/addserver/, async (msg) => addServerHandler({msg, bot, outlineService, VPNConfig}));
 
-bot.onText(/\/regenerate/, async (msg: TelegramBot.Message) => {
-  const chatId = msg.chat.id;
-  const isPrivate = msg.chat.type === 'private';
+bot.onText(/\/removeserver/, async (msg) => removeServerHandler({msg, bot, isAdmin: await isAdmin(msg.chat.id), outlineService}));
 
-  if (!isPrivate) {
-    return;
-  }
-
-  if (!msg.from) {
-    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
-  }
-
-  try {
-    const isSubscribed = await subscriptionService.checkUserSubscription(chatId);
-    if (!isSubscribed) {
-      return bot.sendMessage(chatId, 'Необходимо подписаться на канал для использования этой команды.');
-    }
-
-    const currentConfig = await VPNConfig.findOne({
-      where: { 
-        user_id: chatId.toString(),
-        is_active: true
-      }
-    });
-
-    if (!currentConfig) {
-      await bot.sendMessage(chatId, 'У вас нет активного ключа для обновления.');
-      return;
-    }
-
-    const newConfig = await outlineService.generateConfig(
-      chatId.toString(),
-      currentConfig.server_id,
-      msg.from?.username || msg.from?.first_name
-    );
-    await outlineService.deactivateConfig(chatId.toString());
-    
-    await bot.sendMessage(
-      chatId,
-      `<b>🔑 Ваш новый VPN ключ</b>\n\n` +
-      `<code>${newConfig.config_data}</code>`,
-      { parse_mode: 'HTML' as TelegramBot.ParseMode }
-    );
-  } catch (error) {
-    console.error('Error in /regenerate command:', error);
-    bot.sendMessage(chatId, 'Ошибка при перевыпуске конфигурации.');
-  }
-});
-
-bot.onText(/\/delete/, async (msg: TelegramBot.Message) => {
-  const chatId = msg.chat.id;
-  const isPrivate = msg.chat.type === 'private';
-
-  if (!isPrivate) {
-    return;
-  }
-
-  if (!msg.from) {
-    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
-  }
-
-  try {
-    const configToDelete = await VPNConfig.findOne({
-      where: { 
-        user_id: chatId.toString(),
-        is_active: true
-      }
-    });
-
-    if (!configToDelete) {
-      await bot.sendMessage(chatId, 'У вас нет активного ключа для удаления.');
-      return;
-    }
-
-    await outlineService.deactivateConfig(chatId.toString());
-    await bot.sendMessage(chatId, 'Ваш VPN ключ был деактивирован.');
-  } catch (error) {
-    console.error('Error in /delete command:', error);
-    bot.sendMessage(chatId, 'Ошибка при удалении конфигурации.');
-  }
-});
-
-bot.onText(/\/faq/, (msg: TelegramBot.Message) => {
-  const chatId = msg.chat.id;
-  const isPrivate = msg.chat.type === 'private';
-
-  if (!isPrivate) {
-    return;
-  }
-
-  const faqMessage = `
-Частые вопросы:
-
-1. Как установить VPN?
-- Скачайте и установите Outline Client: https://getoutline.org/get-started/
-- Скопируйте полученный ключ доступа
-- Вставьте ключ в приложение Outline Client
-
-2. Почему не работает VPN?
-- Проверьте подписку на канал
-- Убедитесь, что ключ активен
-- Проверьте статус сервера через кнопку "Статус"
-- Попробуйте переподключиться в приложении Outline
-
-3. Как обновить ключ?
-Используйте команду /regenerate
-
-4. Как получить поддержку?
-Используйте команду /support
-
-5. Где посмотреть статистику?
-Используйте команду /stats
-`;
-  bot.sendMessage(chatId, faqMessage);
-});
-
-bot.onText(/\/support/, (msg: TelegramBot.Message) => {
-  const chatId = msg.chat.id;
-  const isPrivate = msg.chat.type === 'private';
-
-  if (!isPrivate) {
-    return;
-  }
-  
-  if (!msg.from) {
-    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
-  }
-
-  const supportMessage = `
-Техническая поддержка:
-
-1. Общие вопросы: @support_manager
-2. Технические проблемы: @tech_support
-3. Время работы: 9:00 - 21:00 МСК
-
-Для быстрого ответа укажите:
-- Вашу операционную систему
-- Версию WireGuard
-- Описание проблемы
-`;
-  bot.sendMessage(chatId, supportMessage);
-});
-
-bot.onText(/\/stats/, async (msg: TelegramBot.Message) => {
-  const chatId = msg.chat.id;
-  const isPrivate = msg.chat.type === 'private';
-
-  if (!isPrivate) {
-    return;
-  }
-
-  if (!msg.from) {
-    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
-  }
-
-  try {
-    const user = await User.findOne({ where: { telegram_id: chatId.toString() } });
-    const configs = await VPNConfig.findAll({
-      where: { user_id: chatId.toString(), is_active: true }
-    });
-
-    if (!configs.length) {
-      return bot.sendMessage(chatId, 'У вас нет активных VPN конфигураций.');
-    }
-
-    let statsMessage = 'Статистика использования VPN:\n\n';
-    
-    for (const config of configs) {
-      const metrics = await outlineService.getMetrics(config.config_id);
-      const bytesTotal = metrics.dataTransferred.bytes;
-      const bytesInMB = bytesTotal / (1024 * 1024);
-      
-      statsMessage += `ID: ${config.config_id}
-Статус: Активна
-Трафик: ${bytesInMB.toFixed(2)} MB\n\n`;
-    }
-
-    if (user?.is_admin) {
-      const serverStatus = await monitoringService.getSystemStatus();
-      statsMessage += `\nСтатус сервера:
-CPU: ${serverStatus.metrics.cpu_usage.toFixed(1)}%
-RAM: ${serverStatus.metrics.ram_usage.toFixed(1)}%
-Диск: ${serverStatus.metrics.disk_usage.toFixed(1)}%
-Активных подключений: ${serverStatus.metrics.active_connections}
-Аптайм: ${serverStatus.uptime} часов`;
-    }
-
-    bot.sendMessage(chatId, statsMessage);
-  } catch (error) {
-    console.error('Error in /stats command:', error);
-    bot.sendMessage(chatId, 'Ошибка при получении статистики.');
-  }
-});
-
-bot.onText(/\/admin/, async (msg: TelegramBot.Message) => {
-  const chatId = msg.chat.id;
-  const isPrivate = msg.chat.type === 'private';
-
-  if (!isPrivate) {
-    return;
-  }
-  
-  if (!msg.from) {
-    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
-  }
-
-  try {
-    const admin = await isAdmin(chatId);
-    if (!admin) {
-      await bot.sendMessage(chatId, 'У вас нет прав администратора.');
-      return;
-    }
-
-    await bot.sendMessage(chatId, 'Панель управления администратора:', adminKeyboard);
-  } catch (error) {
-    console.error('Error in /admin command:', error);
-    bot.sendMessage(chatId, 'Произошла ошибка. Попробуйте позже.');
-  }
-});
-
-// Добавляем команды для администраторов
-bot.onText(/\/addserver/, async (msg) => {
-  const chatId = msg.chat.id;
-  const isPrivate = msg.chat.type === 'private';
-
-  if (!isPrivate) {
-    return;
-  }
-  
-  if (!msg.from) {
-    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
-  }
-
-  const isUserAdmin = await isAdmin(chatId);
-  if (!isUserAdmin) {
-    return bot.sendMessage(chatId, 'Эта команда доступна только администраторам');
-  }
-
-  const args = msg.text?.split(' ').slice(1);
-  if (!args || args.length !== 4) {
-    return bot.sendMessage(
-      chatId,
-      'Использование: /addserver <name> <location> <api_url> <cert_sha256>'
-    );
-  }
-
-  const [name, location, apiUrl, certSha256] = args;
-
-  try {
-    const server = await outlineService.addServer(name, location, apiUrl, certSha256);
-    await bot.sendMessage(
-      chatId,
-      `Сервер "${server.name}" успешно добавлен!\nID: ${server.id}\nЛокация: ${server.location}`
-    );
-  } catch (error) {
-    console.error('Error adding server:', error);
-    await bot.sendMessage(chatId, 'Произошла ошибка при добавлении сервера');
-  }
-});
-
-bot.onText(/\/removeserver/, async (msg) => {
-  const chatId = msg.chat.id;
-  const isPrivate = msg.chat.type === 'private';
-
-  if (!isPrivate) {
-    return;
-  }
-  
-  if (!msg.from) {
-    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
-  }
-
-  const isUserAdmin = await isAdmin(chatId);
-  if (!isUserAdmin) {
-    return bot.sendMessage(chatId, 'Эта команда доступна только администраторам');
-  }
-
-  const args = msg.text?.split(' ').slice(1);
-  if (!args || args.length !== 1) {
-    return bot.sendMessage(chatId, 'Использование: /removeserver <server_id>');
-  }
-
-  const serverId = parseInt(args[0]);
-  if (isNaN(serverId)) {
-    return bot.sendMessage(chatId, 'ID сервера должен быть числом');
-  }
-
-  try {
-    await outlineService.removeServer(serverId);
-    await bot.sendMessage(chatId, `Сервер с ID ${serverId} успешно деактивирован`);
-  } catch (error) {
-    console.error('Error removing server:', error);
-    await bot.sendMessage(chatId, 'Произошла ошибка при деактивации сервера');
-  }
-});
-
-bot.onText(/\/listservers/, async (msg) => {
-  const chatId = msg.chat.id;
-  const isPrivate = msg.chat.type === 'private';
-
-  if (!isPrivate) {
-    return;
-  }
-
-  const username = msg.from?.username;
-  
-  if (!msg.from) {
-    return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
-  }
-
-  const isUserAdmin = await isAdmin(chatId);
-  if (!isUserAdmin) {
-    return bot.sendMessage(chatId, 'Эта команда доступна только администраторам');
-  }
-
-  const sendBotMessage = async (message: string, options?: TelegramBot.SendMessageOptions) => {
-    console.log(`🤖 Ответ бота для ${username || 'Unknown'} (ID: ${chatId}):\n${message}`);
-    return bot.sendMessage(chatId, message, options);
-  };
-
-  try {
-    const servers = await outlineService.getAvailableServers();
-    if (!servers.length) {
-      return sendBotMessage('Нет доступных серверов');
-    }
-
-    let message = 'Список доступных серверов:\n\n';
-    for (const server of servers) {
-      message += `ID: ${server.id}\n` +
-                `Имя: ${server.name}\n` +
-                `Локация: ${server.location}\n` +
-                `API URL: ${server.outline_api_url}\n\n`;
-    }
-
-    await sendBotMessage(message);
-  } catch (error) {
-    console.error('Error listing servers:', error);
-    await sendBotMessage('Произошла ошибка при получении списка серверов');
-  }
-});
+bot.onText(/\/listservers/, async (msg) => listServersHandler({msg, bot, outlineService, isAdmin: await isAdmin(msg.chat.id)}));

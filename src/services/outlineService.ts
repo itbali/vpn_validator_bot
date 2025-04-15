@@ -147,7 +147,7 @@ interface ApiResponse<T> {
   data: T;
 }
 
-class OutlineService {
+export class OutlineService {
   private servers: Map<number, { apiUrl: string; apiCertSha256: string }> = new Map();
   private config: Config;
   private agent: https.Agent;
