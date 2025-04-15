@@ -180,16 +180,17 @@ bot.onText(/\/start/, async (msg: TelegramBot.Message) => {
 bot.on('message', async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
+  const isPrivate = msg.chat.type === 'private';
   const username = msg.from?.username;
 
-  if (!text) {
+  if (!text || !isPrivate) {
     return;
   }
 
-  console.log(`📨 Сообщение от ${username || 'Unknown'} (ID: ${chatId}): ${text}`);
+  console.log(`Сообщение от ${username || 'Unknown'} (ID: ${chatId}): ${text} \n`);
 
   const sendBotMessage = async (message: string, options?: TelegramBot.SendMessageOptions) => {
-    console.log(`🤖 Ответ бота для ${username || 'Unknown'} (ID: ${chatId}):\n${message}`);
+    console.log(`➡️ Ответ бота для ${username || 'Unknown'} (ID: ${chatId}):\n${message}`);
     return bot.sendMessage(chatId, message, options);
   };
 
