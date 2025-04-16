@@ -34,10 +34,6 @@ interface ServerInfo {
   };
 }
 
-interface ServerMetrics {
-  bytesTransferredByUserId: { [key: string]: number };
-}
-
 interface BandwidthData {
   data: {
     bytes: number;
@@ -96,17 +92,8 @@ interface DetailedMetrics {
   accessKeys: KeyMetrics[];
 }
 
-interface RequestOptions {
-  data?: any;
-  params?: any;
-}
-
 interface TransferMetrics {
   bytesTransferredByUserId: { [key: string]: number };
-}
-
-interface TransferMetricsResponse {
-  bytesTransferred: number;
 }
 
 interface Config {
@@ -141,10 +128,6 @@ interface Config {
   };
 }
 
-interface ApiResponse<T> {
-  data: T;
-}
-
 export class OutlineService {
   private servers: Map<number, { apiUrl: string; apiCertSha256: string }> = new Map();
   private config: Config;
@@ -171,7 +154,6 @@ export class OutlineService {
     }
 
     if (this.servers.size === 0 && this.config.vpn?.outlineApiUrl) {
-      // Добавляем сервер из конфига как резервный вариант
       const defaultServer = await VPNServer.create({
         name: 'Default Server',
         location: 'Unknown',
@@ -185,14 +167,6 @@ export class OutlineService {
         apiCertSha256: defaultServer.outline_cert_sha256
       });
     }
-  }
-
-  private getServerCredentials(serverId: number) {
-    const server = this.servers.get(serverId);
-    if (!server) {
-      throw new Error(`VPN server with ID ${serverId} not found`);
-    }
-    return server;
   }
 
   private async makeRequest<T>(serverId: number, method: string, path: string, data?: any, params?: any): Promise<T> {
