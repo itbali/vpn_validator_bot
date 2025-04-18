@@ -141,6 +141,7 @@ bot.onText(/\/start/, async (msg) =>
     User,
     config,
     keyboard: await mainKeyboard(msg.chat.id),
+    subscriptionService,
   }),
 );
 

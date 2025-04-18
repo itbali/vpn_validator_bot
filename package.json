@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "Telegram VPN Bot",
   "main": "dist/main.js",
-  "type": "module",
   "scripts": {
     "start": "ts-node src/main.ts",
     "migrate": "ts-node src/scripts/migrate.ts",
