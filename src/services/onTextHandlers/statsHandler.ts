@@ -1,6 +1,6 @@
 import { HandlerType } from './handlerType';
 
-export const statsHandler: HandlerType = async ({msg, bot, VPNConfig, outlineService, User, monitoringService}) => {
+export const statsHandler: HandlerType = async ({ msg, bot, VPNConfig, outlineService, User, monitoringService }) => {
   const chatId = msg.chat.id;
   const isPrivate = msg.chat.type === 'private';
 
@@ -15,7 +15,7 @@ export const statsHandler: HandlerType = async ({msg, bot, VPNConfig, outlineSer
   try {
     const user = await User?.findOne({ where: { telegram_id: chatId.toString() } });
     const configs = await VPNConfig?.findAll({
-      where: { user_id: chatId.toString(), is_active: true }
+      where: { user_id: chatId.toString(), is_active: true },
     });
 
     if (!configs?.length) {
@@ -23,12 +23,12 @@ export const statsHandler: HandlerType = async ({msg, bot, VPNConfig, outlineSer
     }
 
     let statsMessage = 'Статистика использования VPN:\n\n';
-    
+
     for (const config of configs) {
       const metrics = await outlineService?.getMetrics(config.config_id);
       const bytesTotal = metrics?.dataTransferred.bytes;
       const bytesInMB = bytesTotal ? bytesTotal / (1024 * 1024) : 0;
-      
+
       statsMessage += `ID: ${config.config_id}
 Статус: Активна
 Трафик: ${bytesInMB.toFixed(2)} MB\n\n`;
@@ -49,5 +49,4 @@ RAM: ${serverStatus?.metrics.ram_usage.toFixed(1)}%
     console.error('Error in /stats command:', error);
     bot.sendMessage(chatId, 'Ошибка при получении статистики.');
   }
-}
-  
+};

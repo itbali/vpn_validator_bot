@@ -40,10 +40,10 @@ export class MonitoringService {
     const admins = await User.findAll({
       where: {
         is_admin: true,
-        is_active: true
-      }
+        is_active: true,
+      },
     });
-    return admins.map(admin => admin.telegram_id.toString());
+    return admins.map((admin) => admin.telegram_id.toString());
   }
 
   private async sendAlertToAdmins(message: string) {
@@ -61,14 +61,14 @@ export class MonitoringService {
     setInterval(async () => {
       try {
         const metrics = await this.collectMetrics();
-        
+
         // Сохраняем метрики в базу данных
         await ServerMetric.create({
           cpu_usage: metrics.cpuUsage,
           ram_usage: metrics.memoryUsage,
           disk_usage: metrics.diskUsage,
           active_connections: 0, // TODO: добавить подсчет активных подключений
-          timestamp: new Date()
+          timestamp: new Date(),
         });
 
         if (metrics.hasHighCpu) {
@@ -89,7 +89,7 @@ export class MonitoringService {
   }
 
   async collectMetrics(): Promise<MetricsWithAlerts> {
-    const cpuUsage = os.loadavg()[0] / os.cpus().length * 100;
+    const cpuUsage = (os.loadavg()[0] / os.cpus().length) * 100;
     const totalMemory = os.totalmem();
     const freeMemory = os.freemem();
     const memoryUsage = ((totalMemory - freeMemory) / totalMemory) * 100;
@@ -103,7 +103,7 @@ export class MonitoringService {
       diskUsage,
       hasHighCpu: cpuUsage > 80,
       hasHighMemory: memoryUsage > 90,
-      hasHighDisk: diskUsage > 90
+      hasHighDisk: diskUsage > 90,
     };
   }
 
@@ -119,7 +119,7 @@ export class MonitoringService {
     const periods: { [key: string]: number } = {
       '24h': 24,
       '7d': 168,
-      '30d': 720
+      '30d': 720,
     };
 
     const hours = periods[period] || 24;
@@ -128,16 +128,16 @@ export class MonitoringService {
     return await ServerMetric.findAll({
       where: {
         timestamp: {
-          [Op.gte]: since
-        }
+          [Op.gte]: since,
+        },
       },
-      order: [['timestamp', 'ASC']]
+      order: [['timestamp', 'ASC']],
     });
   }
 
   async getSystemStatus(): Promise<SystemStatus> {
     const latestMetric = await ServerMetric.findOne({
-      order: [['timestamp', 'DESC']]
+      order: [['timestamp', 'DESC']],
     });
 
     if (!latestMetric) {
@@ -148,12 +148,12 @@ export class MonitoringService {
           cpu_usage: currentMetrics.cpuUsage,
           ram_usage: currentMetrics.memoryUsage,
           disk_usage: currentMetrics.diskUsage,
-          active_connections: 0
+          active_connections: 0,
         },
         uptime: (os.uptime() / 3600).toFixed(1),
         nodeVersion: process.version,
         platform: os.platform(),
-        arch: os.arch()
+        arch: os.arch(),
       };
     }
 
@@ -162,12 +162,12 @@ export class MonitoringService {
         cpu_usage: latestMetric.cpu_usage,
         ram_usage: latestMetric.ram_usage,
         disk_usage: latestMetric.disk_usage,
-        active_connections: latestMetric.active_connections
+        active_connections: latestMetric.active_connections,
       },
       uptime: (os.uptime() / 3600).toFixed(1),
       nodeVersion: process.version,
       platform: os.platform(),
-      arch: os.arch()
+      arch: os.arch(),
     };
   }
-} 
+}

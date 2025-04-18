@@ -5,21 +5,21 @@ import { outlineService } from './outlineService';
 
 const updateUserSubscription = async (userId: string | number, isSubscribed: boolean, isPaidSubscribed: boolean) => {
   await User.update(
-    { 
-      subscription_check: new Date(), 
+    {
+      subscription_check: new Date(),
       is_subscribed: isSubscribed,
-      is_paid_subscribed: isPaidSubscribed
+      is_paid_subscribed: isPaidSubscribed,
     },
-    { where: { telegram_id: userId.toString() } }
+    { where: { telegram_id: userId.toString() } },
   );
-}
+};
 
 export class SubscriptionService {
   async checkPaidSubscription(userId: string | number): Promise<boolean> {
     try {
       const member = await bot.getChatMember(
         Number(config.telegram.paidChannelId),
-        typeof userId === 'string' ? Number(userId) : userId
+        typeof userId === 'string' ? Number(userId) : userId,
       );
 
       const isSubscribed = ['member', 'administrator', 'creator'].includes(member.status);
@@ -37,7 +37,7 @@ export class SubscriptionService {
     try {
       const regularMember = await bot.getChatMember(
         Number(config.telegram.channelId),
-        typeof userId === 'string' ? Number(userId) : userId
+        typeof userId === 'string' ? Number(userId) : userId,
       );
       const isRegularSubscribed = ['member', 'administrator', 'creator'].includes(regularMember.status);
 
@@ -53,33 +53,30 @@ export class SubscriptionService {
   async checkAllSubscriptions(): Promise<void> {
     const users = await User.findAll({
       where: { is_active: true },
-      include: [VPNConfig]
+      include: [VPNConfig],
     });
 
     const { deactivatedKeys } = await outlineService.validateAllKeys();
 
     for (const user of users) {
-      const isSubscribed = await this.checkPaidSubscription(user.telegram_id) || 
-      await this.checkMentorSubscription(user.telegram_id);
-      
+      const isSubscribed =
+        (await this.checkPaidSubscription(user.telegram_id)) || (await this.checkMentorSubscription(user.telegram_id));
+
       if (!isSubscribed && user.is_subscribed) {
         // Деактивируем VPN если пользователь отписался
-        await VPNConfig.update(
-          { is_active: false },
-          { where: { user_id: user.telegram_id } }
-        );
+        await VPNConfig.update({ is_active: false }, { where: { user_id: user.telegram_id } });
 
         await bot.sendMessage(
           user.telegram_id,
-          'Ваш VPN был деактивирован, так как вы отписались от канала. Подпишитесь снова и используйте /start для восстановления доступа.'
+          'Ваш VPN был деактивирован, так как вы отписались от канала. Подпишитесь снова и используйте /start для восстановления доступа.',
         );
       }
 
-      const userDeactivatedKey = deactivatedKeys.find(key => key.userId === user.telegram_id);
+      const userDeactivatedKey = deactivatedKeys.find((key) => key.userId === user.telegram_id);
       if (userDeactivatedKey) {
         await bot.sendMessage(
           user.telegram_id,
-          'Ваш VPN ключ был удален через Outline Manager. Используйте /start для получения нового ключа.'
+          'Ваш VPN ключ был удален через Outline Manager. Используйте /start для получения нового ключа.',
         );
       }
     }
@@ -91,4 +88,4 @@ export class SubscriptionService {
   }
 }
 
-export const subscriptionService = new SubscriptionService(); 
+export const subscriptionService = new SubscriptionService();

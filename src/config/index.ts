@@ -10,14 +10,14 @@ if (process.env.NODE_ENV === 'local') {
 
 const config: Config = {
   bot: {
-    token: process.env.BOT_TOKEN || ''
+    token: process.env.BOT_TOKEN || '',
   },
   database: {
     dialect: 'postgres' as const,
-    url: process.env.DATABASE_URL || 'postgresql://vpnbot:vpnbotpass@localhost:5432/vpnbot'
+    url: process.env.DATABASE_URL || 'postgresql://vpnbot:vpnbotpass@localhost:5432/vpnbot',
   },
   server: {
-    port: parseInt(process.env.PORT || '3000')
+    port: parseInt(process.env.PORT || '3000'),
   },
   monitoring: {
     checkInterval: parseInt(process.env.SERVER_CHECK_INTERVAL || '300'),
@@ -25,15 +25,15 @@ const config: Config = {
       cpu: parseInt(process.env.CPU_THRESHOLD || '80'),
       ram: parseInt(process.env.RAM_THRESHOLD || '80'),
       disk: parseInt(process.env.DISK_THRESHOLD || '80'),
-      traffic: parseInt(process.env.TRAFFIC_THRESHOLD || '90')
-    }
+      traffic: parseInt(process.env.TRAFFIC_THRESHOLD || '90'),
+    },
   },
   telegram: {
     channelId: process.env.CHANNEL_ID || '',
     paidChannelId: process.env.PAID_CHANNEL_ID || '',
     adminIds: process.env.ADMIN_IDS?.split(',').map(Number) || [],
-    checkMembershipInterval: parseInt(process.env.CHECK_MEMBERSHIP_INTERVAL || '3600')
-  }
+    checkMembershipInterval: parseInt(process.env.CHECK_MEMBERSHIP_INTERVAL || '3600'),
+  },
 };
 
-export default config; 
+export default config;

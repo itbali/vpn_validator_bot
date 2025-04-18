@@ -137,7 +137,7 @@ export class OutlineService {
   constructor() {
     this.config = config;
     this.agent = new https.Agent({
-      rejectUnauthorized: false
+      rejectUnauthorized: false,
     });
     this.loadServers();
   }
@@ -145,11 +145,11 @@ export class OutlineService {
   private async loadServers() {
     const servers = await VPNServer.findAll({ where: { is_active: true } });
     this.servers.clear();
-    
+
     for (const server of servers) {
       this.servers.set(server.id, {
         apiUrl: server.outline_api_url,
-        apiCertSha256: server.outline_cert_sha256
+        apiCertSha256: server.outline_cert_sha256,
       });
     }
 
@@ -159,12 +159,12 @@ export class OutlineService {
         location: 'Unknown',
         outline_api_url: this.config.vpn.outlineApiUrl,
         outline_cert_sha256: this.config.vpn.outlineCertSha256,
-        is_active: true
+        is_active: true,
       });
 
       this.servers.set(defaultServer.id, {
         apiUrl: defaultServer.outline_api_url,
-        apiCertSha256: defaultServer.outline_cert_sha256
+        apiCertSha256: defaultServer.outline_cert_sha256,
       });
     }
   }
@@ -183,7 +183,7 @@ export class OutlineService {
         url: `${server.apiUrl}${path}`,
         data,
         params,
-        httpsAgent: this.agent
+        httpsAgent: this.agent,
       });
       console.log('Response:', response.data);
       return response.data;
@@ -196,13 +196,7 @@ export class OutlineService {
   async createKey(name: string, serverId: number, limit?: number): Promise<OutlineKey> {
     try {
       console.log(`Creating key for server ${serverId} with name ${name}`);
-      const response = await this.makeRequest<OutlineKey>(
-        serverId, 
-        'POST',
-        '/access-keys',
-        { name },
-        {}
-      );
+      const response = await this.makeRequest<OutlineKey>(serverId, 'POST', '/access-keys', { name }, {});
       console.log('Create key response:', response);
 
       if (limit) {
@@ -221,13 +215,7 @@ export class OutlineService {
   async deleteKey(keyId: string | number): Promise<void> {
     try {
       const numericKeyId = this.parseKeyId(keyId);
-      await this.makeRequest<void>(
-        1,
-        'DELETE',
-        `/access-keys/${numericKeyId}`,
-        {},
-        {}
-      );
+      await this.makeRequest<void>(1, 'DELETE', `/access-keys/${numericKeyId}`, {}, {});
     } catch (error: unknown) {
       if (error instanceof Error) {
         throw new Error(`Failed to delete key: ${error.message}`);
@@ -254,32 +242,35 @@ export class OutlineService {
       'GET',
       `/access-keys/${parseInt(configId)}/data-limit`,
       {},
-      {}
+      {},
     );
   }
 
-  async getKeyMetrics(serverId: number, keyId: string): Promise<{
+  async getKeyMetrics(
+    serverId: number,
+    keyId: string,
+  ): Promise<{
     bytesTransferred: number;
     lastSeen?: number;
     deviceCount?: number;
   }> {
     try {
       const metrics = await this.getDetailedMetrics(serverId);
-      const keyMetrics = metrics.accessKeys.find(key => key.id === keyId);
+      const keyMetrics = metrics.accessKeys.find((key) => key.id === keyId);
 
       if (!keyMetrics) {
         return {
-          bytesTransferred: 0
+          bytesTransferred: 0,
         };
       }
 
       return {
-        bytesTransferred: keyMetrics.dataTransferred.bytes
+        bytesTransferred: keyMetrics.dataTransferred.bytes,
       };
     } catch (error) {
       console.error(`Error getting metrics for key ${keyId}:`, error);
       return {
-        bytesTransferred: 0
+        bytesTransferred: 0,
       };
     }
   }
@@ -292,31 +283,23 @@ export class OutlineService {
       }
       serverId = config.server_id;
     }
-    return this.makeRequest<KeyMetrics>(
-      serverId,
-      'GET',
-      `/access-keys/${parseInt(configId)}/metrics`,
-      {},
-      {}
-    );
+    return this.makeRequest<KeyMetrics>(serverId, 'GET', `/access-keys/${parseInt(configId)}/metrics`, {}, {});
   }
 
   async generateConfig(userId: string, serverId: number, userName?: string): Promise<VPNConfigInstance> {
     try {
-      const keyName = userName ? 
-        `@${userName} - ${userId}` : 
-        `user_${userId}`;
+      const keyName = userName ? `@${userName} - ${userId}` : `user_${userId}`;
 
       const outlineKey = await this.createKey(keyName, serverId);
 
-      const vpnConfig = await VPNConfig.create({
+      const vpnConfig = (await VPNConfig.create({
         config_id: outlineKey.id,
         user_id: userId,
         server_id: serverId,
         config_data: outlineKey.accessUrl,
         is_active: true,
-        created_at: new Date()
-      }) as VPNConfigInstance;
+        created_at: new Date(),
+      })) as VPNConfigInstance;
 
       return vpnConfig;
     } catch (error) {
@@ -330,8 +313,8 @@ export class OutlineService {
       const config = await VPNConfig.findOne({
         where: {
           user_id: userId,
-          is_active: true
-        }
+          is_active: true,
+        },
       });
 
       if (!config) return;
@@ -354,24 +337,24 @@ export class OutlineService {
   async updateMetrics(configId: string): Promise<VPNMetricInstance> {
     try {
       const metrics = await this.getMetrics(configId);
-      
+
       const [metric] = await VPNMetric.findOrCreate({
-        where: { 
+        where: {
           config_id: configId,
-          date: new Date().toISOString().split('T')[0]
+          date: new Date().toISOString().split('T')[0],
         },
         defaults: {
           bytes_sent: 0,
           bytes_received: 0,
-          connection_time: 0
-        }
+          connection_time: 0,
+        },
       });
 
       const bytesTotal = metrics.dataTransferred.bytes;
       await metric.update({
         bytes_received: bytesTotal / 2, // Примерное разделение на входящий/исходящий трафик
         bytes_sent: bytesTotal / 2,
-        last_connected: new Date()
+        last_connected: new Date(),
       });
 
       return metric as VPNMetricInstance;
@@ -389,7 +372,7 @@ export class OutlineService {
           const metrics = await this.getDetailedMetrics(server.id);
           for (const keyMetrics of metrics.accessKeys) {
             const config = await VPNConfig.findOne({
-              where: { config_id: keyMetrics.id.toString(), is_active: true }
+              where: { config_id: keyMetrics.id.toString(), is_active: true },
             });
 
             if (config) {
@@ -399,7 +382,7 @@ export class OutlineService {
                 bytes_received: keyMetrics.dataTransferred.bytes / 2,
                 bytes_sent: keyMetrics.dataTransferred.bytes / 2,
                 connection_time: keyMetrics.tunnelTime.seconds,
-                last_connected: new Date(keyMetrics.connection.lastTrafficSeen * 1000)
+                last_connected: new Date(keyMetrics.connection.lastTrafficSeen * 1000),
               });
             }
           }
@@ -410,7 +393,10 @@ export class OutlineService {
     }, 300000); // каждые 5 минут
   }
 
-  async validateAllKeys(): Promise<{ deactivatedKeys: Array<{ userId: string; configId: string }>; totalChecked: number }> {
+  async validateAllKeys(): Promise<{
+    deactivatedKeys: Array<{ userId: string; configId: string }>;
+    totalChecked: number;
+  }> {
     const deactivatedKeys: Array<{ userId: string; configId: string }> = [];
     const configs = await VPNConfig.findAll({ where: { is_active: true } });
 
@@ -422,6 +408,8 @@ export class OutlineService {
       } catch (error) {
         await config.update({ is_active: false });
         deactivatedKeys.push({ userId: config.user_id, configId: config.config_id });
+        console.log(`Key ${config.config_id} deactivated`);
+        console.warn(error);
       }
     }
 
@@ -442,33 +430,35 @@ export class OutlineService {
   async getDetailedMetrics(serverId: number): Promise<DetailedMetrics> {
     try {
       const now = Math.floor(Date.now() / 1000);
-      const thirtyDaysAgo = now - (30 * 24 * 60 * 60);
-      
+      const thirtyDaysAgo = now - 30 * 24 * 60 * 60;
+
       const response = await this.makeRequest<DetailedMetrics>(
         serverId,
         'GET',
         '/experimental/server/metrics',
         {
           params: {
-            since: (new Date(thirtyDaysAgo * 1000).toISOString())
-          }
+            since: new Date(thirtyDaysAgo * 1000).toISOString(),
+          },
         },
-        {}
+        {},
       );
-    
+
       console.log('Received metrics response:', {
         serverBandwidth: response.server.bandwidth,
         totalTransferred: formatBytes(response.server.dataTransferred.bytes),
         keysCount: response.accessKeys.length,
-        keys: response.accessKeys.map(key => ({
+        keys: response.accessKeys.map((key) => ({
           id: key.id,
           name: key.name,
           transferred: formatBytes(key.dataTransferred.bytes),
           tunnelTime: `${Math.floor(key.tunnelTime.seconds / 3600)} часов`,
-          lastSeen: key.connection?.lastTrafficSeen ? new Date(key.connection.lastTrafficSeen * 1000).toISOString() : 'never'
-        }))
+          lastSeen: key.connection?.lastTrafficSeen
+            ? new Date(key.connection.lastTrafficSeen * 1000).toISOString()
+            : 'never',
+        })),
       });
-      
+
       return response;
     } catch (error: any) {
       console.error('Error getting detailed metrics:', error);
@@ -481,13 +471,13 @@ export class OutlineService {
         server: {
           bandwidth: {
             current: { data: { bytes: 0 }, timestamp: now },
-            peak: { data: { bytes: 0 }, timestamp: now }
+            peak: { data: { bytes: 0 }, timestamp: now },
           },
           dataTransferred: { bytes: 0 },
           tunnelTime: { seconds: 0 },
-          locations: []
+          locations: [],
         },
-        accessKeys: []
+        accessKeys: [],
       };
     }
   }
@@ -503,7 +493,13 @@ export class OutlineService {
 
   // Access key methods
   async renameKey(keyId: string, name: string): Promise<void> {
-    await this.makeRequest<void>(Number(1), 'PUT', `/access-keys/${this.parseKeyId(keyId)}/name`, { data: { name } }, {});
+    await this.makeRequest<void>(
+      Number(1),
+      'PUT',
+      `/access-keys/${this.parseKeyId(keyId)}/name`,
+      { data: { name } },
+      {},
+    );
   }
 
   async setDataLimit(keyId: string | number, limitBytes: number): Promise<void> {
@@ -514,7 +510,7 @@ export class OutlineService {
         'PUT',
         `/access-keys/${numericKeyId}/data-limit`,
         { bytes: limitBytes },
-        {}
+        {},
       );
     } catch (error: unknown) {
       if (error instanceof Error) {
@@ -527,13 +523,7 @@ export class OutlineService {
   async removeDataLimit(keyId: string | number): Promise<void> {
     try {
       const numericKeyId = this.parseKeyId(keyId);
-      await this.makeRequest<void>(
-        Number(1),
-        'DELETE',
-        `/access-keys/${numericKeyId}/data-limit`,
-        {},
-        {}
-      );
+      await this.makeRequest<void>(Number(1), 'DELETE', `/access-keys/${numericKeyId}/data-limit`, {}, {});
     } catch (error: unknown) {
       if (error instanceof Error) {
         throw new Error(`Failed to remove data limit: ${error.message}`);
@@ -552,7 +542,7 @@ export class OutlineService {
       location,
       outline_api_url: apiUrl,
       outline_cert_sha256: certSha256,
-      is_active: true
+      is_active: true,
     });
 
     await this.loadServers();
@@ -560,10 +550,7 @@ export class OutlineService {
   }
 
   async removeServer(serverId: number) {
-    await VPNServer.update(
-      { is_active: false },
-      { where: { id: serverId } }
-    );
+    await VPNServer.update({ is_active: false }, { where: { id: serverId } });
 
     await this.loadServers();
   }
@@ -580,4 +567,4 @@ export class OutlineService {
   }
 }
 
-export const outlineService = new OutlineService(); 
+export const outlineService = new OutlineService();

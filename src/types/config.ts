@@ -35,4 +35,4 @@ export interface Config {
     outlineApiUrl: string;
     outlineCertSha256: string;
   };
-} 
+}

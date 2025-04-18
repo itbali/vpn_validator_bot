@@ -1,13 +1,13 @@
 import { HandlerType } from './handlerType';
 
-export const supportHandler: HandlerType = async ({msg, bot}) => {
+export const supportHandler: HandlerType = async ({ msg, bot }) => {
   const chatId = msg.chat.id;
   const isPrivate = msg.chat.type === 'private';
 
   if (!isPrivate) {
     return;
   }
-  
+
   if (!msg.from) {
     return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
   }
@@ -24,5 +24,4 @@ export const supportHandler: HandlerType = async ({msg, bot}) => {
 - Описание проблемы
 `;
   bot.sendMessage(chatId, supportMessage);
-}
-  
+};

@@ -6,6 +6,7 @@ const umzug = new Umzug({
   migrations: {
     glob: path.join(__dirname, '../migrations/*.ts'),
     resolve: ({ name, path }) => {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
       const migration = require(path!);
       return {
         name,
@@ -29,4 +30,4 @@ async function migrate() {
   }
 }
 
-migrate(); 
+migrate();

@@ -5,130 +5,130 @@ export async function up(queryInterface: QueryInterface) {
     id: {
       type: DataTypes.INTEGER,
       autoIncrement: true,
-      primaryKey: true
+      primaryKey: true,
     },
     telegram_id: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false
+      allowNull: false,
     },
     username: {
       type: DataTypes.STRING,
-      allowNull: true
+      allowNull: true,
     },
     is_active: {
       type: DataTypes.BOOLEAN,
-      defaultValue: true
+      defaultValue: true,
     },
     is_admin: {
       type: DataTypes.BOOLEAN,
-      defaultValue: false
+      defaultValue: false,
     },
     is_subscribed: {
       type: DataTypes.BOOLEAN,
-      defaultValue: false
+      defaultValue: false,
     },
     is_mentor_subscribed: {
       type: DataTypes.BOOLEAN,
-      defaultValue: false
+      defaultValue: false,
     },
     created_at: {
       type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW
+      defaultValue: DataTypes.NOW,
     },
     updated_at: {
       type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW
-    }
+      defaultValue: DataTypes.NOW,
+    },
   });
 
   await queryInterface.createTable('VPNConfigs', {
     id: {
       type: DataTypes.INTEGER,
       autoIncrement: true,
-      primaryKey: true
+      primaryKey: true,
     },
     user_id: {
       type: DataTypes.STRING,
       allowNull: false,
       references: {
         model: 'Users',
-        key: 'telegram_id'
-      }
+        key: 'telegram_id',
+      },
     },
     config_id: {
       type: DataTypes.STRING,
       unique: true,
-      allowNull: false
+      allowNull: false,
     },
     config_data: {
       type: DataTypes.TEXT,
-      allowNull: false
+      allowNull: false,
     },
     is_active: {
       type: DataTypes.BOOLEAN,
-      defaultValue: true
+      defaultValue: true,
     },
     created_at: {
       type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW
+      defaultValue: DataTypes.NOW,
     },
     updated_at: {
       type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW
-    }
+      defaultValue: DataTypes.NOW,
+    },
   });
 
   await queryInterface.createTable('VPNMetrics', {
     id: {
       type: DataTypes.INTEGER,
       autoIncrement: true,
-      primaryKey: true
+      primaryKey: true,
     },
     config_id: {
       type: DataTypes.STRING,
       allowNull: false,
       references: {
         model: 'VPNConfigs',
-        key: 'config_id'
-      }
+        key: 'config_id',
+      },
     },
     bytes_transferred: {
       type: DataTypes.BIGINT,
-      defaultValue: 0
+      defaultValue: 0,
     },
     measured_at: {
       type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW
-    }
+      defaultValue: DataTypes.NOW,
+    },
   });
 
   await queryInterface.createTable('ServerMetrics', {
     id: {
       type: DataTypes.INTEGER,
       autoIncrement: true,
-      primaryKey: true
+      primaryKey: true,
     },
     cpu_usage: {
       type: DataTypes.FLOAT,
-      allowNull: false
+      allowNull: false,
     },
     ram_usage: {
       type: DataTypes.FLOAT,
-      allowNull: false
+      allowNull: false,
     },
     disk_usage: {
       type: DataTypes.FLOAT,
-      allowNull: false
+      allowNull: false,
     },
     active_connections: {
       type: DataTypes.INTEGER,
-      defaultValue: 0
+      defaultValue: 0,
     },
     measured_at: {
       type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW
-    }
+      defaultValue: DataTypes.NOW,
+    },
   });
 }
 
@@ -137,4 +137,4 @@ export async function down(queryInterface: QueryInterface) {
   await queryInterface.dropTable('VPNMetrics');
   await queryInterface.dropTable('VPNConfigs');
   await queryInterface.dropTable('Users');
-} 
+}

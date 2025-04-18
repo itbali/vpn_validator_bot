@@ -1,13 +1,13 @@
 import { HandlerType } from './handlerType';
 
-export const removeServerHandler: HandlerType = async ({msg, bot, isAdmin, outlineService}) => {
+export const removeServerHandler: HandlerType = async ({ msg, bot, isAdmin, outlineService }) => {
   const chatId = msg.chat.id;
   const isPrivate = msg.chat.type === 'private';
 
   if (!isPrivate) {
     return;
   }
-  
+
   if (!msg.from) {
     return bot.sendMessage(chatId, 'Не удалось определить отправителя сообщения');
   }
@@ -33,5 +33,4 @@ export const removeServerHandler: HandlerType = async ({msg, bot, isAdmin, outli
     console.error('Error removing server:', error);
     await bot.sendMessage(chatId, 'Произошла ошибка при деактивации сервера');
   }
-}
-  
+};

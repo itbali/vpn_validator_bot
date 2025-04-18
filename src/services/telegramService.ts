@@ -41,10 +41,10 @@ const adminKeyboard: TelegramBot.SendMessageOptions = {
       [{ text: '📊 Статистика сервера' }, { text: '👥 Пользователи' }],
       [{ text: '⊕ Добавить сервер' }, { text: '📋 Список серверов' }],
       [{ text: '⚙️ Текущий конфиг' }],
-      [{ text: '◀️ Назад' }]
+      [{ text: '◀️ Назад' }],
     ],
-    resize_keyboard: true
-  }
+    resize_keyboard: true,
+  },
 };
 
 const isAdmin = async (chatId: number): Promise<boolean> => {
@@ -54,7 +54,7 @@ const isAdmin = async (chatId: number): Promise<boolean> => {
     }
 
     const user = await User.findOne({
-      where: { telegram_id: String(chatId) }
+      where: { telegram_id: String(chatId) },
     });
 
     if (!user) {
@@ -66,12 +66,14 @@ const isAdmin = async (chatId: number): Promise<boolean> => {
     }
 
     const channelId = config.telegram.channelId;
-    const paidChannelId = config.telegram.paidChannelId;  
+    const paidChannelId = config.telegram.paidChannelId;
     const chatMember = await bot.getChatMember(channelId, chatId);
-    console.log({chatMember});
+    console.log({ chatMember });
     const paidChatMember = await bot.getChatMember(paidChannelId, chatId);
-    console.log({paidChatMember});
-    const isAdminStatus = ['creator', 'administrator'].includes(chatMember.status) || ['creator', 'administrator'].includes(paidChatMember.status);
+    console.log({ paidChatMember });
+    const isAdminStatus =
+      ['creator', 'administrator'].includes(chatMember.status) ||
+      ['creator', 'administrator'].includes(paidChatMember.status);
     return isAdminStatus;
   } catch (error) {
     console.error('Error checking admin status:', error);
@@ -82,17 +84,17 @@ const isAdmin = async (chatId: number): Promise<boolean> => {
 const mainKeyboard = async (chatId: number): Promise<TelegramBot.SendMessageOptions> => {
   const isUserAdmin = await isAdmin(chatId);
   const isMentorSubscriber = await subscriptionService.checkMentorSubscription(chatId);
-  
+
   return {
     reply_markup: {
       keyboard: [
         [{ text: '🎭 VPN' }, ...(isMentorSubscriber ? [{ text: '👨‍💻 Менторинг' }] : [])],
         [{ text: '🔄 Перезапустить бота' }],
-        ...(isUserAdmin ? [[{ text: '⚙️ Админ панель' }]] : [])
+        ...(isUserAdmin ? [[{ text: '⚙️ Админ панель' }]] : []),
       ],
-      resize_keyboard: true
-    }
-  }
+      resize_keyboard: true,
+    },
+  };
 };
 
 const vpnKeyboard: TelegramBot.SendMessageOptions = {
@@ -102,10 +104,10 @@ const vpnKeyboard: TelegramBot.SendMessageOptions = {
       [{ text: '📊 Статистика' }],
       [{ text: '🔄 Обновить ключ' }],
       [{ text: '🗑 Удалить ключ' }],
-      [{ text: '◀️ Назад' }]
+      [{ text: '◀️ Назад' }],
     ],
-    resize_keyboard: true
-  }
+    resize_keyboard: true,
+  },
 };
 
 const mentorKeyboard = {
@@ -113,25 +115,34 @@ const mentorKeyboard = {
     inline_keyboard: [
       [{ text: '📝 Разбор резюме', url: 'https://planerka.app/aleksei-diuzhev/razbor-rezyume' }],
       [{ text: '👨‍💻 Встреча с учеником', url: 'https://planerka.app/aleksei-diuzhev/vstrecha-s-uchenikom---1ch' }],
-      [{ text: '🎯 Мок собес', url: 'https://planerka.app/aleksei-diuzhev/mokovoe-sobesedovanie' }]
-    ]
-  }
+      [{ text: '🎯 Мок собес', url: 'https://planerka.app/aleksei-diuzhev/mokovoe-sobesedovanie' }],
+    ],
+  },
 } as TelegramBot.SendMessageOptions;
 
 const createServerSelectionKeyboard = async (): Promise<TelegramBot.SendMessageOptions> => {
   const servers = await outlineService.getAvailableServers();
-  const keyboard = servers.map(server => [{ text: `🌍 ${server.name} (${server.location})` }]);
+  const keyboard = servers.map((server) => [{ text: `🌍 ${server.name} (${server.location})` }]);
   keyboard.push([{ text: '◀️ Назад' }]);
-  
+
   return {
     reply_markup: {
       keyboard,
-      resize_keyboard: true
-    }
+      resize_keyboard: true,
+    },
   };
 };
 
-bot.onText(/\/start/, async (msg) => startHandler({msg, isAdmin: await isAdmin(msg.chat.id), bot, User, config, keyboard: await mainKeyboard(msg.chat.id)}));
+bot.onText(/\/start/, async (msg) =>
+  startHandler({
+    msg,
+    isAdmin: await isAdmin(msg.chat.id),
+    bot,
+    User,
+    config,
+    keyboard: await mainKeyboard(msg.chat.id),
+  }),
+);
 
 // Обработчик текстовых сообщений для кнопок меню
 bot.on('message', async (msg) => {
@@ -168,7 +179,7 @@ bot.on('message', async (msg) => {
     const isPaidSubscribed = await subscriptionService.checkPaidSubscription(chatId);
     const isMentoringSubscribed = await subscriptionService.checkMentorSubscription(chatId);
     const isSubscribed = isPaidSubscribed || isMentoringSubscribed;
-    
+
     if (!user.is_active) {
       await sendBotMessage('Ваш аккаунт не активен. Обратитесь к администратору.');
       return;
@@ -187,7 +198,6 @@ bot.on('message', async (msg) => {
         }
         try {
           const serverStatus = await monitoringService.getSystemStatus();
-          const metrics = await outlineService.getMetrics('all');
           let serverStatsMessage = `📊 Статистика сервера:\n\n`;
           serverStatsMessage += `CPU: ${serverStatus.metrics.cpu_usage.toFixed(1)}%\n`;
           serverStatsMessage += `RAM: ${serverStatus.metrics.ram_usage.toFixed(1)}%\n`;
@@ -209,21 +219,21 @@ bot.on('message', async (msg) => {
         try {
           const servers = await outlineService.getAvailableServers();
           let keysMessage = `🔑 Список всех ключей:\n\n`;
-          
+
           if (servers.length === 0) {
             await sendBotMessage('Нет доступных серверов. Добавьте сервер с помощью кнопки "➕ Добавить сервер"');
             return;
           }
-          
+
           for (const server of servers) {
             const keys = await outlineService.listKeys(server.id);
             keysMessage += `📍 Сервер: ${server.name} (${server.location})\n\n`;
-            
+
             if (keys.length === 0) {
               keysMessage += `Нет активных ключей\n\n`;
               continue;
             }
-            
+
             for (const key of keys) {
               try {
                 const metrics = await outlineService.getMetrics(key.id);
@@ -234,11 +244,12 @@ bot.on('message', async (msg) => {
                 keysMessage += `ID: ${key.id}\n`;
                 keysMessage += `Имя: ${key.name}\n`;
                 keysMessage += `Трафик: Нет данных\n\n`;
+                console.warn(`Error getting metrics for key ${key.id}:`, error);
               }
             }
             keysMessage += `\n`;
           }
-          
+
           await sendBotMessage(keysMessage);
         } catch (error) {
           console.error('Error listing keys:', error);
@@ -254,20 +265,18 @@ bot.on('message', async (msg) => {
         // Инициализируем диалог добавления сервера
         serverDialogs.set(chatId, {
           step: 'name',
-          data: {}
+          data: {},
         });
         await sendBotMessage(
           'Давайте добавим новый сервер.\n\n' +
-          'Шаг 1/4: Введите название сервера (например: "Server 1")\n\n' +
-          '❌ Для отмены напишите "отмена"',
+            'Шаг 1/4: Введите название сервера (например: "Server 1")\n\n' +
+            '❌ Для отмены напишите "отмена"',
           {
             reply_markup: {
-              keyboard: [
-                [{ text: '❌ Отмена' }]
-              ],
-              resize_keyboard: true
-            }
-          }
+              keyboard: [[{ text: '❌ Отмена' }]],
+              resize_keyboard: true,
+            },
+          },
         );
         break;
 
@@ -294,10 +303,11 @@ bot.on('message', async (msg) => {
 
           let message = 'Список доступных серверов:\n\n';
           for (const server of servers) {
-            message += `ID: ${server.id}\n` +
-                      `Имя: ${server.name}\n` +
-                      `Локация: ${server.location}\n` +
-                      `API URL: ${server.outline_api_url}\n\n`;
+            message +=
+              `ID: ${server.id}\n` +
+              `Имя: ${server.name}\n` +
+              `Локация: ${server.location}\n` +
+              `API URL: ${server.outline_api_url}\n\n`;
           }
 
           await sendBotMessage(message);
@@ -318,7 +328,7 @@ bot.on('message', async (msg) => {
           let message = `✅ Проверка завершена\n\n`;
           message += `📊 Всего проверено ключей: ${result.totalChecked}\n`;
           message += `❌ Деактивировано ключей: ${result.deactivatedKeys.length}\n\n`;
-          
+
           if (result.deactivatedKeys.length > 0) {
             message += `Деактивированные ключи:\n`;
             for (const key of result.deactivatedKeys) {
@@ -326,7 +336,7 @@ bot.on('message', async (msg) => {
               message += `- Конфиг: ${key.configId} (Пользователь: ${user?.username || key.userId})\n`;
             }
           }
-          
+
           await sendBotMessage(message);
         } catch (error) {
           console.error('Error validating keys:', error);
@@ -344,7 +354,7 @@ bot.on('message', async (msg) => {
         let usersMessage = `👥 Список пользователей:\n\n`;
         for (const user of users) {
           const configs = await VPNConfig.findAll({
-            where: { user_id: user.telegram_id, is_active: true }
+            where: { user_id: user.telegram_id, is_active: true },
           });
           usersMessage += `ID: ${user.telegram_id}\n`;
           usersMessage += `Имя: ${user.username || 'Не указано'}\n`;
@@ -368,35 +378,34 @@ bot.on('message', async (msg) => {
 
       case '🔑 Получить ключ':
         const existingConfig = await VPNConfig.findOne({
-          where: { 
+          where: {
             user_id: chatId.toString(),
-            is_active: true
-          }
+            is_active: true,
+          },
         });
 
         if (existingConfig) {
           await sendBotMessage(
             `<b>🔑 Ваш активный VPN ключ</b>\n\n` +
-            `<b>Скопируйте этот ключ и вставьте в приложение Outline:</b>\n\n` +
-            `<code>${existingConfig.config_data}</code>`,
-            { parse_mode: 'HTML' as TelegramBot.ParseMode }
+              `<b>Скопируйте этот ключ и вставьте в приложение Outline:</b>\n\n` +
+              `<code>${existingConfig.config_data}</code>`,
+            { parse_mode: 'HTML' as TelegramBot.ParseMode },
           );
         } else {
           const keyboard = await createServerSelectionKeyboard();
-          await sendBotMessage(
-            'Выберите сервер для подключения:',
-            keyboard
-          );
+          await sendBotMessage('Выберите сервер для подключения:', keyboard);
         }
         break;
 
       case '📊 Статистика':
         const configs = await VPNConfig.findAll({
           where: { user_id: chatId.toString(), is_active: true },
-          include: [{
-            model: VPNServer,
-            required: false
-          }]
+          include: [
+            {
+              model: VPNServer,
+              required: false,
+            },
+          ],
         });
 
         if (!configs.length) {
@@ -405,36 +414,38 @@ bot.on('message', async (msg) => {
         }
 
         let userStatsMessage = 'Статистика использования VPN:\n\n';
-        
+
         for (const config of configs) {
           try {
             const metrics = await outlineService.getMetrics(config.config_id);
             const server = await VPNServer.findByPk(config.server_id);
             const serverName = server?.name || 'Неизвестный сервер';
             const location = server?.location || 'Неизвестно';
-            
-            userStatsMessage += `Сервер: ${serverName} (${location})\n` +
-                              `ID: ${config.config_id}\n` +
-                              `Статус: Активна\n` +
-                              `Трафик: ${formatBytes(metrics.dataTransferred.bytes)}\n\n`;
+
+            userStatsMessage +=
+              `Сервер: ${serverName} (${location})\n` +
+              `ID: ${config.config_id}\n` +
+              `Статус: Активна\n` +
+              `Трафик: ${formatBytes(metrics.dataTransferred.bytes)}\n\n`;
           } catch (error) {
-            userStatsMessage += `ID: ${config.config_id}\n` +
-                              `Статус: Активна\n` +
-                              `Трафик: Нет данных\n\n`;
+            userStatsMessage += `ID: ${config.config_id}\n` + `Статус: Активна\n` + `Трафик: Нет данных\n\n`;
+            console.warn(`Error getting metrics for key ${config.config_id}:`, error);
           }
         }
 
         if (user.is_admin) {
           try {
             const serverStatus = await monitoringService.getSystemStatus();
-            userStatsMessage += `\nСтатус сервера:\n` +
-                              `CPU: ${serverStatus.metrics.cpu_usage.toFixed(1)}%\n` +
-                              `RAM: ${serverStatus.metrics.ram_usage.toFixed(1)}%\n` +
-                              `Диск: ${serverStatus.metrics.disk_usage.toFixed(1)}%\n` +
-                              `Активных подключений: ${serverStatus.metrics.active_connections}\n` +
-                              `Аптайм: ${serverStatus.uptime} часов`;
+            userStatsMessage +=
+              `\nСтатус сервера:\n` +
+              `CPU: ${serverStatus.metrics.cpu_usage.toFixed(1)}%\n` +
+              `RAM: ${serverStatus.metrics.ram_usage.toFixed(1)}%\n` +
+              `Диск: ${serverStatus.metrics.disk_usage.toFixed(1)}%\n` +
+              `Активных подключений: ${serverStatus.metrics.active_connections}\n` +
+              `Аптайм: ${serverStatus.uptime} часов`;
           } catch (error) {
             userStatsMessage += '\nОшибка при получении статуса сервера';
+            console.warn('Error getting server status:', error);
           }
         }
 
@@ -468,39 +479,12 @@ bot.on('message', async (msg) => {
         await sendBotMessage(faqMessage);
         break;
 
-      case '🔄 Обновить ключ':
-        const currentConfig = await VPNConfig.findOne({
-          where: { 
-            user_id: chatId.toString(),
-            is_active: true
-          }
-        });
-
-        if (!currentConfig) {
-          await sendBotMessage('У вас нет активного ключа для обновления.');
-          return;
-        }
-
-        const newConfig = await outlineService.generateConfig(
-          chatId.toString(),
-          currentConfig.server_id,
-          msg.from?.username || msg.from?.first_name
-        );
-        await outlineService.deactivateConfig(chatId.toString());
-        
-        await sendBotMessage(
-          `<b>🔑 Ваш новый VPN ключ</b>\n\n` +
-          `<code>${newConfig.config_data}</code>`,
-          { parse_mode: 'HTML' as TelegramBot.ParseMode }
-        );
-        break;
-
       case '🗑 Удалить ключ':
         const configToDelete = await VPNConfig.findOne({
-          where: { 
+          where: {
             user_id: chatId.toString(),
-            is_active: true
-          }
+            is_active: true,
+          },
         });
 
         if (!configToDelete) {
@@ -521,10 +505,7 @@ bot.on('message', async (msg) => {
         break;
 
       case '🎭 VPN':
-        await sendBotMessage(
-          'Выберите действие:',
-          vpnKeyboard
-        );
+        await sendBotMessage('Выберите действие:', vpnKeyboard);
         break;
 
       case '👨‍💻 Менторинг':
@@ -534,61 +515,55 @@ bot.on('message', async (msg) => {
             `Для получения информации о менторинге, посетите <a href="https://alex-diuzhev.ru/">сайт ментора</a>`,
             {
               parse_mode: 'HTML',
-            }
+            },
           );
           return;
         }
         await sendBotMessage(
           '<b>Выберите тип встречи:</b>\n\n' +
-          '📝 <b>Разбор резюме</b> - Профессиональный анализ вашего резюме\n' +
-          '👨‍💻 <b>Встреча с учеником</b> - Персональная консультация\n' +
-          '🎯 <b>Мок собес</b> - Пробное собеседование',
-          { 
+            '📝 <b>Разбор резюме</b> - Профессиональный анализ вашего резюме\n' +
+            '👨‍💻 <b>Встреча с учеником</b> - Персональная консультация\n' +
+            '🎯 <b>Мок собес</b> - Пробное собеседование',
+          {
             parse_mode: 'HTML',
-            ...mentorKeyboard
-          }
+            ...mentorKeyboard,
+          },
         );
         break;
 
       case '◀️ Главное меню':
         const mainMenuKeyboard = await mainKeyboard(chatId);
-        await sendBotMessage(
-          'Главное меню:',
-          mainMenuKeyboard
-        );
+        await sendBotMessage('Главное меню:', mainMenuKeyboard);
         break;
 
       case '🔄 Перезапустить бота':
-        await sendBotMessage(
-          'Бот перезапущен. Выберите действие:',
-          await mainKeyboard(chatId)
-        );
+        await sendBotMessage('Бот перезапущен. Выберите действие:', await mainKeyboard(chatId));
         break;
 
       case '❓ Инструкция':
         await sendBotMessage(
           '<b>📱 Как установить и настроить VPN:</b>\n\n' +
-          '1️⃣ <b>Установите приложение Outline:</b>\n' +
-          '• iOS: <a href="https://itunes.apple.com/us/app/outline-app/id1356177741">App Store</a>\n' +
-          '• Android: <a href="https://play.google.com/store/apps/details?id=org.outline.android.client">Google Play</a>\n' +
-          '• Windows: <a href="https://s3.amazonaws.com/outline-releases/client/windows/stable/Outline-Client.exe">Скачать</a>\n' +
-          '• macOS: <a href="https://itunes.apple.com/us/app/outline-app/id1356178125">Mac App Store</a>\n' +
-          '• Linux: <a href="https://support.google.com/outline/answer/15331527">Инструкция</a>\n' +
-          '• Chrome: <a href="https://play.google.com/store/apps/details?id=org.outline.android.client">Плагин</a>\n\n' +
-          '2️⃣ <b>Подключение:</b>\n' +
-          '• Нажмите "🔑 Получить ключ" в меню\n' +
-          '• Скопируйте полученный ключ\n' +
-          '• Откройте приложение Outline\n' +
-          '• Вставьте ключ и нажмите "Подключиться"\n\n' +
-          '3️⃣ <b>Дополнительно:</b>\n' +
-          '• Для обновления ключа используйте "🔄 Обновить ключ"\n' +
-          '• Для просмотра статистики нажмите "📊 Статистика"\n' +
-          '• Если VPN не нужен, нажмите "🗑 Удалить ключ"\n\n' +
-          '❗️ <b>Важно:</b> Не передавайте свой ключ другим пользователям',
-          { 
+            '1️⃣ <b>Установите приложение Outline:</b>\n' +
+            '• iOS: <a href="https://itunes.apple.com/us/app/outline-app/id1356177741">App Store</a>\n' +
+            '• Android: <a href="https://play.google.com/store/apps/details?id=org.outline.android.client">Google Play</a>\n' +
+            '• Windows: <a href="https://s3.amazonaws.com/outline-releases/client/windows/stable/Outline-Client.exe">Скачать</a>\n' +
+            '• macOS: <a href="https://itunes.apple.com/us/app/outline-app/id1356178125">Mac App Store</a>\n' +
+            '• Linux: <a href="https://support.google.com/outline/answer/15331527">Инструкция</a>\n' +
+            '• Chrome: <a href="https://play.google.com/store/apps/details?id=org.outline.android.client">Плагин</a>\n\n' +
+            '2️⃣ <b>Подключение:</b>\n' +
+            '• Нажмите "🔑 Получить ключ" в меню\n' +
+            '• Скопируйте полученный ключ\n' +
+            '• Откройте приложение Outline\n' +
+            '• Вставьте ключ и нажмите "Подключиться"\n\n' +
+            '3️⃣ <b>Дополнительно:</b>\n' +
+            '• Для обновления ключа используйте "🔄 Обновить ключ"\n' +
+            '• Для просмотра статистики нажмите "📊 Статистика"\n' +
+            '• Если VPN не нужен, нажмите "🗑 Удалить ключ"\n\n' +
+            '❗️ <b>Важно:</b> Не передавайте свой ключ другим пользователям',
+          {
             parse_mode: 'HTML',
-            disable_web_page_preview: true
-          }
+            disable_web_page_preview: true,
+          },
         );
         break;
 
@@ -604,7 +579,7 @@ bot.on('message', async (msg) => {
                 dialogState.step = 'location';
                 await sendBotMessage(
                   'Шаг 2/4: Введите местоположение сервера (например: "Netherlands")\n\n' +
-                  '❌ Для отмены напишите "отмена"'
+                    '❌ Для отмены напишите "отмена"',
                 );
                 break;
 
@@ -613,17 +588,14 @@ bot.on('message', async (msg) => {
                 dialogState.step = 'api_url';
                 await sendBotMessage(
                   'Шаг 3/4: Введите API URL сервера (например: "https://example.com:1234/abc")\n\n' +
-                  '❌ Для отмены напишите "отмена"'
+                    '❌ Для отмены напишите "отмена"',
                 );
                 break;
 
               case 'api_url':
                 dialogState.data.api_url = text;
                 dialogState.step = 'cert_sha256';
-                await sendBotMessage(
-                  'Шаг 4/4: Введите SHA256 сертификата\n\n' +
-                  '❌ Для отмены напишите "отмена"'
-                );
+                await sendBotMessage('Шаг 4/4: Введите SHA256 сертификата\n\n' + '❌ Для отмены напишите "отмена"');
                 break;
 
               case 'cert_sha256':
@@ -634,10 +606,10 @@ bot.on('message', async (msg) => {
                   const server = await outlineService.addServer(name, location, api_url, cert_sha256);
                   await sendBotMessage(
                     `✅ Сервер успешно добавлен!\n\n` +
-                    `📍 Название: ${server.name}\n` +
-                    `🌍 Локация: ${server.location}\n` +
-                    `🔢 ID: ${server.id}`,
-                    adminKeyboard
+                      `📍 Название: ${server.name}\n` +
+                      `🌍 Локация: ${server.location}\n` +
+                      `🔢 ID: ${server.id}`,
+                    adminKeyboard,
                   );
                 }
                 // Очищаем состояние диалога
@@ -648,7 +620,7 @@ bot.on('message', async (msg) => {
             console.error('Error in server dialog:', error);
             await sendBotMessage(
               '❌ Произошла ошибка при добавлении сервера. Попробуйте снова через команду "➕ Добавить сервер"',
-              adminKeyboard
+              adminKeyboard,
             );
             serverDialogs.delete(chatId);
           }
@@ -660,8 +632,8 @@ bot.on('message', async (msg) => {
           const server = await VPNServer.findOne({
             where: {
               name: serverName,
-              is_active: true
-            }
+              is_active: true,
+            },
           });
 
           if (!server) {
@@ -671,19 +643,19 @@ bot.on('message', async (msg) => {
 
           try {
             await outlineService.deactivateConfig(chatId.toString());
-            
+
             const vpnConfig = await outlineService.generateConfig(
               chatId.toString(),
               server.id,
-              msg.from?.username || msg.from?.first_name
+              msg.from?.username || msg.from?.first_name,
             );
 
             await sendBotMessage(
               `<b>🔑 Ваш новый ключ создан!</b>\n\n` +
-              `<b>📱 Установите приложение Outline VPN для iOS или Android</b>\n\n` +
-              `<b>⚡️ Скопируйте этот ключ и вставьте в приложение:</b>\n\n` +
-              `<code>${vpnConfig.config_data}</code>`,
-              { parse_mode: 'HTML' as TelegramBot.ParseMode }
+                `<b>📱 Установите приложение Outline VPN для iOS или Android</b>\n\n` +
+                `<b>⚡️ Скопируйте этот ключ и вставьте в приложение:</b>\n\n` +
+                `<code>${vpnConfig.config_data}</code>`,
+              { parse_mode: 'HTML' as TelegramBot.ParseMode },
             );
           } catch (error) {
             console.error('Error generating VPN key:', error);
@@ -698,40 +670,54 @@ bot.on('message', async (msg) => {
   }
 });
 
-bot.onText(/\/help/, (msg: TelegramBot.Message) => helpHandler({msg, bot}));
+bot.onText(/\/help/, (msg: TelegramBot.Message) => helpHandler({ msg, bot }));
 
-bot.onText(/\/mentor/, (msg: TelegramBot.Message) => mentorHandler({msg, bot}));
+bot.onText(/\/mentor/, (msg: TelegramBot.Message) => mentorHandler({ msg, bot }));
 
-bot.onText(/\/regenerate/, async (msg: TelegramBot.Message) => regenerateKeyHandler({msg, bot, subscriptionService, VPNConfig, outlineService}));
+bot.onText(/\/regenerate/, async (msg: TelegramBot.Message) =>
+  regenerateKeyHandler({ msg, bot, subscriptionService, VPNConfig, outlineService }),
+);
 
-bot.onText(/\/delete/, async (msg: TelegramBot.Message) => deleteHandler({msg, bot, outlineService}));
+bot.onText(/\/delete/, async (msg: TelegramBot.Message) => deleteHandler({ msg, bot, outlineService }));
 
-bot.onText(/\/faq/, (msg: TelegramBot.Message) => faqHandler({msg, bot}));
+bot.onText(/\/faq/, (msg: TelegramBot.Message) => faqHandler({ msg, bot }));
 
-bot.onText(/\/support/, (msg: TelegramBot.Message) => supportHandler({msg, bot}));
+bot.onText(/\/support/, (msg: TelegramBot.Message) => supportHandler({ msg, bot }));
 
-bot.onText(/\/stats/, async (msg: TelegramBot.Message) => statsHandler({msg, bot, VPNConfig, outlineService, User, monitoringService}));
+bot.onText(/\/stats/, async (msg: TelegramBot.Message) =>
+  statsHandler({ msg, bot, VPNConfig, outlineService, User, monitoringService }),
+);
 
-bot.onText(/\/admin/, async (msg: TelegramBot.Message) => adminHandler({msg, bot, isAdmin: await isAdmin(msg.chat.id), adminKeyboard}));
+bot.onText(/\/admin/, async (msg: TelegramBot.Message) =>
+  adminHandler({ msg, bot, isAdmin: await isAdmin(msg.chat.id), adminKeyboard }),
+);
 
-bot.onText(/\/addserver/, async (msg) => addServerHandler({msg, bot, outlineService, VPNConfig}));
+bot.onText(/\/addserver/, async (msg) => addServerHandler({ msg, bot, outlineService, VPNConfig }));
 
-bot.onText(/\/removeserver/, async (msg) => removeServerHandler({msg, bot, isAdmin: await isAdmin(msg.chat.id), outlineService}));
+bot.onText(/\/removeserver/, async (msg) =>
+  removeServerHandler({ msg, bot, isAdmin: await isAdmin(msg.chat.id), outlineService }),
+);
 
-bot.onText(/\/listservers/, async (msg) => listServersHandler({msg, bot, outlineService, isAdmin: await isAdmin(msg.chat.id)}));
+bot.onText(/\/listservers/, async (msg) =>
+  listServersHandler({ msg, bot, outlineService, isAdmin: await isAdmin(msg.chat.id) }),
+);
 
 // Обработка ошибок подключения
 bot.on('polling_error', async (error: any) => {
   console.error('Polling error:', error.message);
-  
+
   // Проверяем наличие кода ошибки и его значение
-  if (error && typeof error === 'object' && 'code' in error &&
-      (error.code === 'EFATAL' || error.code === 'ETIMEDOUT' || error.code === 'EAI_AGAIN')) {
+  if (
+    error &&
+    typeof error === 'object' &&
+    'code' in error &&
+    (error.code === 'EFATAL' || error.code === 'ETIMEDOUT' || error.code === 'EAI_AGAIN')
+  ) {
     console.log('Connection error detected, attempting to reconnect in 10 seconds...');
-    
+
     // Останавливаем текущий поллинг
     await bot.stopPolling();
-    
+
     // Ждем 10 секунд перед повторным подключением
     setTimeout(async () => {
       try {

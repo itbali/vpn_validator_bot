@@ -15,8 +15,8 @@ export class UserVpnController {
       const config = await VPNConfig.findOne({
         where: {
           user_id: userId,
-          is_active: true
-        }
+          is_active: true,
+        },
       });
 
       if (!config) {
@@ -31,7 +31,7 @@ export class UserVpnController {
       let message = `🔑 Ваш VPN ключ:\n\n`;
       message += `📡 Адрес подключения: ${key.accessUrl}\n`;
       message += `📊 Использовано трафика: ${formatBytes(metrics.dataTransferred.bytes)}\n`;
-      
+
       if (dataLimit) {
         const percentUsed = (metrics.dataTransferred.bytes / dataLimit.bytes) * 100;
         message += `\n📈 Лимит трафика: ${formatBytes(dataLimit.bytes)}\n`;
@@ -56,8 +56,8 @@ export class UserVpnController {
       const config = await VPNConfig.findOne({
         where: {
           user_id: userId,
-          is_active: true
-        }
+          is_active: true,
+        },
       });
 
       if (!config) {
@@ -70,7 +70,7 @@ export class UserVpnController {
 
       let message = `📊 Статистика использования VPN:\n\n`;
       message += `📊 Использовано трафика: ${formatBytes(metrics.dataTransferred.bytes)}\n`;
-      
+
       if (dataLimit) {
         const remaining = dataLimit.bytes - metrics.dataTransferred.bytes;
         const percentUsed = (metrics.dataTransferred.bytes / dataLimit.bytes) * 100;

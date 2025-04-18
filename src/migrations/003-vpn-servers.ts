@@ -5,36 +5,36 @@ export async function up(queryInterface: QueryInterface) {
     id: {
       type: DataTypes.INTEGER,
       autoIncrement: true,
-      primaryKey: true
+      primaryKey: true,
     },
     name: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: false,
     },
     location: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: false,
     },
     outline_api_url: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: false,
     },
     outline_cert_sha256: {
       type: DataTypes.STRING,
-      allowNull: false
+      allowNull: false,
     },
     is_active: {
       type: DataTypes.BOOLEAN,
-      defaultValue: true
+      defaultValue: true,
     },
     created_at: {
       type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW
+      defaultValue: DataTypes.NOW,
     },
     updated_at: {
       type: DataTypes.DATE,
-      defaultValue: DataTypes.NOW
-    }
+      defaultValue: DataTypes.NOW,
+    },
   });
 
   await queryInterface.addColumn('VPNConfigs', 'server_id', {
@@ -42,12 +42,12 @@ export async function up(queryInterface: QueryInterface) {
     allowNull: true,
     references: {
       model: 'VPNServers',
-      key: 'id'
-    }
+      key: 'id',
+    },
   });
 }
 
 export async function down(queryInterface: QueryInterface) {
   await queryInterface.removeColumn('VPNConfigs', 'server_id');
   await queryInterface.dropTable('VPNServers');
-} 
+}

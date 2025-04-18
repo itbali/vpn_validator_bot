@@ -1,14 +1,14 @@
-import { HandlerType } from "./handlerType";
+import { HandlerType } from './handlerType';
 
-export const mentorHandler: HandlerType = async ({msg, bot}) => {
-    const chatId = msg.chat.id;
-    const isPrivate = msg.chat.type === 'private';
-  
-    if (!isPrivate) {
-      return;
-    }
-  
-    const mentorInfo = `
+export const mentorHandler: HandlerType = async ({ msg, bot }) => {
+  const chatId = msg.chat.id;
+  const isPrivate = msg.chat.type === 'private';
+
+  if (!isPrivate) {
+    return;
+  }
+
+  const mentorInfo = `
   Информация о менторе:
   - Опыт работы: 5+ лет
   - Специализация: Backend разработка
@@ -22,5 +22,5 @@ export const mentorHandler: HandlerType = async ({msg, bot}) => {
   
   Для записи на консультацию используйте /support
   `;
-    bot.sendMessage(chatId, mentorInfo);
-  }
+  bot.sendMessage(chatId, mentorInfo);
+};

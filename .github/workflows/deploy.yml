@@ -45,10 +45,10 @@ jobs:
         run: |
           # Проверка SSH соединения
           ssh -T $SERVER_USER@$SERVER_IP 'echo "SSH connection successful"'
-          
+
           # Создаем директорию если её нет
           ssh $SERVER_USER@$SERVER_IP "mkdir -p $DEPLOY_PATH"
-          
+
           # Копируем файлы на сервер
           rsync -avz --delete \
             --exclude '.git' \
@@ -60,7 +60,7 @@ jobs:
             --exclude '*.db' \
             --exclude '.env' \
             ./ $SERVER_USER@$SERVER_IP:$DEPLOY_PATH/
-          
+
           # Создаем файл .env на сервере
           ssh $SERVER_USER@$SERVER_IP "cat > $DEPLOY_PATH/.env << 'EOL'
           BOT_TOKEN=${BOT_TOKEN}
@@ -70,14 +70,14 @@ jobs:
           DATABASE_URL=${DATABASE_URL}
           OUTLINE_API_URL=${OUTLINE_API_URL}
           EOL"
-          
+
           # Очистка Docker кэша и неиспользуемых образов
           ssh $SERVER_USER@$SERVER_IP "docker system prune -f"
-          
+
           # Запускаем контейнеры с увеличенным таймаутом
           ssh $SERVER_USER@$SERVER_IP "cd $DEPLOY_PATH && \
             DOCKER_CLIENT_TIMEOUT=120 \
             COMPOSE_HTTP_TIMEOUT=120 \
             docker-compose down || true && \
             DOCKER_BUILDKIT=1 COMPOSE_DOCKER_CLI_BUILD=1 docker-compose build --no-cache && \
-            docker-compose up -d" 
+            docker-compose up -d"

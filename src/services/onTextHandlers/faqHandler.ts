@@ -1,6 +1,6 @@
 import { HandlerType } from './handlerType';
 
-export const faqHandler: HandlerType = async ({msg, bot}) => {
+export const faqHandler: HandlerType = async ({ msg, bot }) => {
   const chatId = msg.chat.id;
   const isPrivate = msg.chat.type === 'private';
 
@@ -33,5 +33,4 @@ export const faqHandler: HandlerType = async ({msg, bot}) => {
 Используйте команду /stats
 `;
   bot.sendMessage(chatId, faqMessage);
-}
-  
+};

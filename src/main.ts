@@ -26,7 +26,7 @@ async function start(): Promise<void> {
     setInterval(async () => {
       try {
         const metrics = await monitoringService.collectMetrics();
-        
+
         if (metrics.hasHighCpu) {
           for (const adminId of config.telegram.adminIds) {
             await bot.sendMessage(adminId, `⚠️ Высокая загрузка CPU: ${metrics.cpuUsage.toFixed(1)}%`);
@@ -80,4 +80,4 @@ process.on('SIGTERM', async () => {
   }
 });
 
-start(); 
+start();

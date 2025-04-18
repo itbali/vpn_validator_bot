@@ -90,4 +90,4 @@ export interface User {
   is_paid_subscribed: boolean;
   created_at: Date;
   updated_at: Date;
-} 
+}

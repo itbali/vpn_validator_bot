@@ -49,4 +49,4 @@ export interface UserInstance extends Model {
   subscription_check: Date | null;
   is_subscribed: boolean;
   is_mentor_subscribed: boolean;
-} 
+}

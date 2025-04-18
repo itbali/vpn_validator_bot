@@ -13,12 +13,14 @@ Telegram бот для управления VPN доступом с поддер
 ## Установка
 
 1. Клонируйте репозиторий:
+
 ```bash
 git clone https://github.com/yourusername/vpn_bot_node.git
 cd vpn_bot_node
 ```
 
 2. Создайте файл .env на основе .env.example:
+
 ```bash
 cp .env.example .env
 ```
@@ -26,6 +28,7 @@ cp .env.example .env
 3. Настройте переменные окружения в файле .env
 
 4. Запустите бота с помощью Docker Compose:
+
 ```bash
 docker-compose up -d
 ```
@@ -36,11 +39,13 @@ docker-compose up -d
 2. Создайте новый сервер Outline VPN
 3. В Outline Manager найдите API URL и сертификат (Настройки -> Управление через API)
 4. Используйте команду `/addserver` в боте для добавления сервера:
+
 ```
 /addserver <name> <location> <api_url> <cert_sha256>
 ```
 
 Пример:
+
 ```
 /addserver Netherlands-1 Amsterdam https://outline-server:port/api cert_sha256_hash
 ```
@@ -61,20 +66,23 @@ docker-compose up -d
 ## Разработка
 
 1. Установите зависимости:
+
 ```bash
 npm install
 ```
 
 2. Запустите базу данных:
+
 ```bash
 docker-compose up db -d
 ```
 
 3. Запустите бота в режиме разработки:
+
 ```bash
 npm run dev
 ```
 
 ## Лицензия
 
-MIT 
+MIT

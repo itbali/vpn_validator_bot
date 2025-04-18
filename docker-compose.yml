@@ -22,7 +22,7 @@ services:
     networks:
       - vpn_bot_network
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U vpnbot"]
+      test: ['CMD-SHELL', 'pg_isready -U vpnbot']
       interval: 5s
       timeout: 5s
       retries: 5
@@ -32,4 +32,4 @@ volumes:
 
 networks:
   vpn_bot_network:
-    driver: bridge 
+    driver: bridge
