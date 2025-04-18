@@ -10,7 +10,17 @@
     "dev": "nodemon --exec ts-node src/main.ts",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{ts,tsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md}": [
+      "prettier --write"
+    ]
   },
   "keywords": [],
   "author": "",
@@ -38,6 +48,8 @@
     "eslint": "^8.57.1",
     "eslint-config-prettier": "^10.1.2",
     "globals": "^16.0.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.5.1",
     "nodemon": "^2.0.22",
     "prettier": "3.5.3",
     "ts-node": "^10.9.2",

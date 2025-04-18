@@ -100,10 +100,8 @@ const mainKeyboard = async (chatId: number): Promise<TelegramBot.SendMessageOpti
 const vpnKeyboard: TelegramBot.SendMessageOptions = {
   reply_markup: {
     keyboard: [
-      [{ text: '🔑 Получить ключ' }],
-      [{ text: '📊 Статистика' }],
-      [{ text: '🔄 Обновить ключ' }],
-      [{ text: '🗑 Удалить ключ' }],
+      [{ text: '🔑 Получить ключ' }, { text: '🗑 Удалить ключ' }],
+      [{ text: '📊 Статистика' }, { text: '🔄 Обновить ключ' }],
       [{ text: '◀️ Назад' }],
     ],
     resize_keyboard: true,
@@ -458,9 +456,19 @@ bot.on('message', async (msg) => {
 Частые вопросы:
 
 1. Как установить VPN?
-- Скачайте и установите Outline Client: https://getoutline.org/get-started/
+- Скачайте и установите Outline Client (ссылкы ниже)
 - Скопируйте полученный ключ доступа
 - Вставьте ключ в приложение Outline Client
+- Нажмите "Подключиться"
+
+Ссылки:
+- MacOS: https://itunes.apple.com/us/app/outline-app/id1356178125
+- iOS: https://itunes.apple.com/us/app/outline-app/id1356177741
+- Android: https://play.google.com/store/apps/details?id=org.outline.android.client
+- Windows: https://s3.amazonaws.com/outline-releases/client/windows/stable/Outline-Client.exe
+- Linux: https://support.google.com/outline/answer/15331527
+- Chrome: https://play.google.com/store/apps/details?id=org.outline.android.client
+
 
 2. Почему не работает VPN?
 - Проверьте подписку на канал
