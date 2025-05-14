@@ -611,7 +611,12 @@ bot.on('message', async (msg) => {
         }
 
         if (text.startsWith('🌍 ')) {
-          const serverName = text.slice(2).split(' (')[0].trim();
+          // Extract server name from button text by removing the emoji and location part
+          const buttonText = text.slice(2).trim();
+          // Find the last occurrence of " (" to properly handle server names that contain parentheses
+          const lastParenIndex = buttonText.lastIndexOf(' (');
+          const serverName = lastParenIndex !== -1 ? buttonText.substring(0, lastParenIndex).trim() : buttonText;
+
           const server = await VPNServer.findOne({
             where: {
               name: serverName,
