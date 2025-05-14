@@ -364,8 +364,7 @@ bot.on('message', async (msg) => {
           usersMessage += `Платная подписка: ${user.is_paid_subscribed ? '✅' : '❌'}\n`;
           usersMessage += `Активных ключей: ${configs.length}\n\n`;
         }
-        await sendBotMessage(usersMessage);
-        await sendBotMessage('Вернуться в главное меню:', await mainKeyboard(chatId));
+        await sendBotMessage(usersMessage, adminKeyboard);
         break;
 
       case '⚙️ Админ панель':
@@ -504,6 +503,40 @@ bot.on('message', async (msg) => {
 
         await outlineService.deactivateConfig(chatId.toString());
         await sendBotMessage('Ваш VPN ключ был деактивирован.');
+        break;
+
+      case '🔄 Обновить ключ':
+        const currentConfig = await VPNConfig.findOne({
+          where: {
+            user_id: chatId.toString(),
+            is_active: true,
+          },
+        });
+
+        if (!currentConfig) {
+          await sendBotMessage('У вас нет активного ключа для обновления.');
+          return;
+        }
+
+        try {
+          const newConfig = await outlineService.generateConfig(
+            chatId.toString(),
+            currentConfig.server_id,
+            msg.from?.username || msg.from?.first_name,
+          );
+          // Деактивируем старый конфиг только после успешного создания нового
+          await outlineService.deactivateConfig(chatId.toString());
+
+          await sendBotMessage(
+            `<b>🔑 Ваш VPN ключ был обновлен!</b>\n\n` +
+              `<b>⚡️ Скопируйте этот ключ и вставьте в приложение:</b>\n\n` +
+              `<code>${newConfig.config_data}</code>`,
+            { parse_mode: 'HTML' as TelegramBot.ParseMode },
+          );
+        } catch (error) {
+          console.error('Error regenerating VPN key:', error);
+          await sendBotMessage('Произошла ошибка при обновлении VPN ключа. Попробуйте позже.');
+        }
         break;
 
       case '◀️ Назад':
