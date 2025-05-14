@@ -37,11 +37,9 @@ const monitoringService = new MonitoringService(bot);
 const adminKeyboard: TelegramBot.SendMessageOptions = {
   reply_markup: {
     keyboard: [
-      [{ text: '🔑 Управление ключами' }, { text: '🔄 Проверить ключи' }],
-      [{ text: '📊 Статистика сервера' }, { text: '👥 Пользователи' }],
-      [{ text: '⊕ Добавить сервер' }, { text: '📋 Список серверов' }],
-      [{ text: '⚙️ Текущий конфиг' }],
-      [{ text: '◀️ Назад' }],
+      [{ text: '🔑 Управление ключами' }, { text: '🔄 Проверить ключи' }, { text: '👥 Пользователи' }],
+      [{ text: '📊 Статистика сервера' }, { text: '⊕ Добавить сервер' }, { text: '📋 Список серверов' }],
+      [{ text: '⚙️ Текущий конфиг' }, { text: '◀️ Назад' }],
     ],
     resize_keyboard: true,
   },
@@ -337,12 +335,11 @@ bot.on('message', async (msg) => {
             }
           }
 
-          await sendBotMessage(message);
+          await sendBotMessage(message, adminKeyboard);
         } catch (error) {
           console.error('Error validating keys:', error);
-          await sendBotMessage('❌ Произошла ошибка при проверке ключей.');
+          await sendBotMessage('❌ Произошла ошибка при проверке ключей.', await mainKeyboard(chatId));
         }
-        await sendBotMessage('Вернуться в главное меню:', await mainKeyboard(chatId));
         break;
 
       case '👥 Пользователи':
@@ -365,6 +362,63 @@ bot.on('message', async (msg) => {
           usersMessage += `Активных ключей: ${configs.length}\n\n`;
         }
         await sendBotMessage(usersMessage, adminKeyboard);
+        break;
+
+      case '⚙️ Текущий конфиг':
+        if (!isUserAdmin) {
+          await sendBotMessage('У вас нет прав администратора.');
+          return;
+        }
+
+        try {
+          // Получаем общее количество серверов и активных ключей
+          const servers = await outlineService.getAvailableServers();
+          const totalServers = servers.length;
+
+          let totalKeys = 0;
+          for (const server of servers) {
+            const keys = await outlineService.listKeys(server.id);
+            totalKeys += keys.length;
+          }
+
+          // Получаем общее количество пользователей
+          const totalUsers = await User.count();
+          const activeUsers = await User.count({ where: { is_active: true } });
+
+          // Формируем сообщение с информацией о настройках
+          let configMessage = `<b>⚙️ Текущая конфигурация системы:</b>\n\n`;
+
+          // Информация о серверах и ключах
+          configMessage += `<b>Серверы и VPN:</b>\n`;
+          configMessage += `• Всего серверов: ${totalServers}\n`;
+          configMessage += `• Всего активных ключей: ${totalKeys}\n\n`;
+
+          // Информация о пользователях
+          configMessage += `<b>Пользователи:</b>\n`;
+          configMessage += `• Всего пользователей: ${totalUsers}\n`;
+          configMessage += `• Активных пользователей: ${activeUsers}\n\n`;
+
+          // Информация о настройках мониторинга
+          configMessage += `<b>Настройки мониторинга:</b>\n`;
+          configMessage += `• Интервал проверки: ${config.monitoring.checkInterval} секунд\n`;
+          configMessage += `• Порог CPU: ${config.monitoring.thresholds.cpu}%\n`;
+          configMessage += `• Порог RAM: ${config.monitoring.thresholds.ram}%\n`;
+          configMessage += `• Порог диска: ${config.monitoring.thresholds.disk}%\n\n`;
+
+          // Информация о Telegram настройках
+          configMessage += `<b>Настройки Telegram:</b>\n`;
+          configMessage += `• ID основного канала: ${config.telegram.channelId}\n`;
+          configMessage += `• ID платного канала: ${config.telegram.paidChannelId}\n`;
+          configMessage += `• Количество администраторов: ${config.telegram.adminIds.length}\n`;
+
+          await sendBotMessage(configMessage, {
+            parse_mode: 'HTML' as TelegramBot.ParseMode,
+            ...adminKeyboard,
+          });
+        } catch (error) {
+          console.error('Error getting config info:', error);
+          await sendBotMessage('Ошибка при получении информации о конфигурации.', adminKeyboard);
+        }
         break;
 
       case '⚙️ Админ панель':
