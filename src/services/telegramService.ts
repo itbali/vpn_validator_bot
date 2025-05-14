@@ -34,6 +34,85 @@ const serverDialogs = new Map<number, ServerDialogState>();
 export const bot = new TelegramBot(config.bot.token, { polling: true });
 const monitoringService = new MonitoringService(bot);
 
+// Настройка меню команд для бота
+const setupBotCommands = async (): Promise<void> => {
+  try {
+    // Базовые команды для всех пользователей
+    const baseCommands = [
+      { command: '/start', description: 'Запустить бота' },
+      { command: '/help', description: 'Показать справку' },
+      { command: '/vpn', description: 'Управление VPN' },
+      { command: '/regenerate', description: 'Обновить VPN ключ' },
+      { command: '/delete', description: 'Удалить VPN ключ' },
+      { command: '/stats', description: 'Показать статистику' },
+      { command: '/faq', description: 'Частые вопросы' },
+      { command: '/support', description: 'Получить поддержку' },
+      { command: '/mentor', description: 'Менторинг' },
+    ];
+
+    // Команды только для администраторов
+    const adminCommands = [
+      { command: '/admin', description: 'Админ панель' },
+      { command: '/addserver', description: 'Добавить сервер' },
+      { command: '/listservers', description: 'Список серверов' },
+      { command: '/removeserver', description: 'Удалить сервер' },
+    ];
+
+    // Установка базовых команд для всех пользователей
+    await bot.setMyCommands(baseCommands);
+
+    // Для каждого администратора устанавливаем расширенный набор команд
+    for (const adminId of config.telegram.adminIds) {
+      try {
+        await bot.setMyCommands([...baseCommands, ...adminCommands], { scope: { type: 'chat', chat_id: adminId } });
+      } catch (err) {
+        console.error(`Failed to set admin commands for admin ${adminId}:`, err);
+      }
+    }
+
+    console.log('Bot menu commands have been successfully set up');
+  } catch (error) {
+    console.error('Error setting up bot commands:', error);
+  }
+};
+
+// Обновление команд меню для конкретного пользователя
+export const updateUserCommands = async (chatId: number): Promise<void> => {
+  try {
+    const isUserAdmin = await isAdmin(chatId);
+
+    // Базовые команды для всех пользователей
+    const baseCommands = [
+      { command: '/start', description: 'Запустить бота' },
+      { command: '/help', description: 'Показать справку' },
+      { command: '/vpn', description: 'Управление VPN' },
+      { command: '/regenerate', description: 'Обновить VPN ключ' },
+      { command: '/delete', description: 'Удалить VPN ключ' },
+      { command: '/stats', description: 'Показать статистику' },
+      { command: '/faq', description: 'Частые вопросы' },
+      { command: '/support', description: 'Получить поддержку' },
+      { command: '/mentor', description: 'Менторинг' },
+    ];
+
+    // Команды только для администраторов
+    const adminCommands = [
+      { command: '/admin', description: 'Админ панель' },
+      { command: '/addserver', description: 'Добавить сервер' },
+      { command: '/listservers', description: 'Список серверов' },
+      { command: '/removeserver', description: 'Удалить сервер' },
+    ];
+
+    const commands = isUserAdmin ? [...baseCommands, ...adminCommands] : baseCommands;
+    await bot.setMyCommands(commands, { scope: { type: 'chat', chat_id: chatId } });
+    console.log(`Commands updated for user ${chatId}, admin status: ${isUserAdmin}`);
+  } catch (error) {
+    console.error(`Error updating commands for user ${chatId}:`, error);
+  }
+};
+
+// Инициализируем меню при запуске
+setupBotCommands();
+
 const adminKeyboard: TelegramBot.SendMessageOptions = {
   reply_markup: {
     keyboard: [
@@ -130,17 +209,23 @@ const createServerSelectionKeyboard = async (): Promise<TelegramBot.SendMessageO
   };
 };
 
-bot.onText(/\/start/, async (msg) =>
-  startHandler({
+bot.onText(/\/start/, async (msg) => {
+  const chatId = msg.chat.id;
+
+  // Обновляем команды меню для пользователя
+  await updateUserCommands(chatId);
+
+  // Запускаем стандартный обработчик
+  await startHandler({
     msg,
-    isAdmin: await isAdmin(msg.chat.id),
+    isAdmin: await isAdmin(chatId),
     bot,
     User,
     config,
-    keyboard: await mainKeyboard(msg.chat.id),
+    keyboard: await mainKeyboard(chatId),
     subscriptionService,
-  }),
-);
+  });
+});
 
 // Обработчик текстовых сообщений для кнопок меню
 bot.on('message', async (msg) => {
@@ -763,9 +848,17 @@ bot.onText(/\/stats/, async (msg: TelegramBot.Message) =>
   statsHandler({ msg, bot, VPNConfig, outlineService, User, monitoringService }),
 );
 
-bot.onText(/\/admin/, async (msg: TelegramBot.Message) =>
-  adminHandler({ msg, bot, isAdmin: await isAdmin(msg.chat.id), adminKeyboard }),
-);
+bot.onText(/\/admin/, async (msg: TelegramBot.Message) => {
+  const chatId = msg.chat.id;
+  const isUserAdmin = await isAdmin(chatId);
+
+  // Если пользователь является администратором, обновляем его команды
+  if (isUserAdmin) {
+    await updateUserCommands(chatId);
+  }
+
+  await adminHandler({ msg, bot, isAdmin: isUserAdmin, adminKeyboard });
+});
 
 bot.onText(/\/addserver/, async (msg) =>
   addServerHandler({ msg, bot, outlineService, isAdmin: await isAdmin(msg.chat.id) }),
@@ -778,6 +871,32 @@ bot.onText(/\/removeserver/, async (msg) =>
 bot.onText(/\/listservers/, async (msg) =>
   listServersHandler({ msg, bot, outlineService, isAdmin: await isAdmin(msg.chat.id) }),
 );
+
+bot.onText(/\/vpn/, async (msg) => {
+  const chatId = msg.chat.id;
+  const user = await User.findOne({ where: { telegram_id: chatId.toString() } });
+
+  if (!user) {
+    await bot.sendMessage(chatId, 'Пожалуйста, начните с команды /start');
+    return;
+  }
+
+  const isPaidSubscribed = await subscriptionService.checkPaidSubscription(chatId);
+  const isMentoringSubscribed = await subscriptionService.checkMentorSubscription(chatId);
+  const isSubscribed = isPaidSubscribed || isMentoringSubscribed;
+
+  if (!user.is_active) {
+    await bot.sendMessage(chatId, 'Ваш аккаунт не активен. Обратитесь к администратору.');
+    return;
+  }
+
+  if (!isSubscribed) {
+    await bot.sendMessage(chatId, 'Для использования бота необходимо подписаться на каналы.');
+    return;
+  }
+
+  await bot.sendMessage(chatId, 'Выберите действие:', vpnKeyboard);
+});
 
 // Обработка ошибок подключения
 bot.on('polling_error', async (error: any) => {
