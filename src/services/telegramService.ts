@@ -102,6 +102,7 @@ const vpnKeyboard: TelegramBot.SendMessageOptions = {
     keyboard: [
       [{ text: '🔑 Получить ключ' }, { text: '🗑 Удалить ключ' }],
       [{ text: '📊 Статистика' }, { text: '🔄 Обновить ключ' }],
+      [{ text: '❓ FAQ' }],
       [{ text: '◀️ Назад' }],
     ],
     resize_keyboard: true,
@@ -220,7 +221,7 @@ bot.on('message', async (msg) => {
           let keysMessage = `🔑 Список всех ключей:\n\n`;
 
           if (servers.length === 0) {
-            await sendBotMessage('Нет доступных серверов. Добавьте сервер с помощью кнопки "➕ Добавить сервер"');
+            await sendBotMessage('Нет доступных серверов. Добавьте сервер с помощью кнопки "⊕ Добавить сервер"');
             return;
           }
 
@@ -256,7 +257,7 @@ bot.on('message', async (msg) => {
         }
         break;
 
-      case '➕ Добавить сервер':
+      case '⊕ Добавить сервер':
         if (!isUserAdmin) {
           await sendBotMessage('У вас нет прав администратора.');
           return;
@@ -462,12 +463,12 @@ bot.on('message', async (msg) => {
 - Нажмите "Подключиться"
 
 Ссылки:
-- MacOS: https://itunes.apple.com/us/app/outline-app/id1356178125
-- iOS: https://itunes.apple.com/us/app/outline-app/id1356177741
-- Android: https://play.google.com/store/apps/details?id=org.outline.android.client
-- Windows: https://s3.amazonaws.com/outline-releases/client/windows/stable/Outline-Client.exe
-- Linux: https://support.google.com/outline/answer/15331527
-- Chrome: https://play.google.com/store/apps/details?id=org.outline.android.client
+<a href="https://itunes.apple.com/us/app/outline-app/id1356178125">MacOS</a>
+<a href="https://itunes.apple.com/us/app/outline-app/id1356177741">iOS</a>
+<a href="https://play.google.com/store/apps/details?id=org.outline.android.client">Android</a>
+<a href="https://s3.amazonaws.com/outline-releases/client/windows/stable/Outline-Client.exe">Windows</a>
+<a href="https://support.google.com/outline/answer/15331527">Linux</a>
+<a href="https://play.google.com/store/apps/details?id=org.outline.android.client">Chrome</a>
 
 
 2. Почему не работает VPN?
@@ -485,7 +486,7 @@ bot.on('message', async (msg) => {
 5. Где посмотреть статистику?
 Используйте команду /stats
 `;
-        await sendBotMessage(faqMessage);
+        await sendBotMessage(faqMessage, { parse_mode: 'HTML' as TelegramBot.ParseMode });
         break;
 
       case '🗑 Удалить ключ':
@@ -549,33 +550,6 @@ bot.on('message', async (msg) => {
         await sendBotMessage('Бот перезапущен. Выберите действие:', await mainKeyboard(chatId));
         break;
 
-      case '❓ Инструкция':
-        await sendBotMessage(
-          '<b>📱 Как установить и настроить VPN:</b>\n\n' +
-            '1️⃣ <b>Установите приложение Outline:</b>\n' +
-            '• iOS: <a href="https://itunes.apple.com/us/app/outline-app/id1356177741">App Store</a>\n' +
-            '• Android: <a href="https://play.google.com/store/apps/details?id=org.outline.android.client">Google Play</a>\n' +
-            '• Windows: <a href="https://s3.amazonaws.com/outline-releases/client/windows/stable/Outline-Client.exe">Скачать</a>\n' +
-            '• macOS: <a href="https://itunes.apple.com/us/app/outline-app/id1356178125">Mac App Store</a>\n' +
-            '• Linux: <a href="https://support.google.com/outline/answer/15331527">Инструкция</a>\n' +
-            '• Chrome: <a href="https://play.google.com/store/apps/details?id=org.outline.android.client">Плагин</a>\n\n' +
-            '2️⃣ <b>Подключение:</b>\n' +
-            '• Нажмите "🔑 Получить ключ" в меню\n' +
-            '• Скопируйте полученный ключ\n' +
-            '• Откройте приложение Outline\n' +
-            '• Вставьте ключ и нажмите "Подключиться"\n\n' +
-            '3️⃣ <b>Дополнительно:</b>\n' +
-            '• Для обновления ключа используйте "🔄 Обновить ключ"\n' +
-            '• Для просмотра статистики нажмите "📊 Статистика"\n' +
-            '• Если VPN не нужен, нажмите "🗑 Удалить ключ"\n\n' +
-            '❗️ <b>Важно:</b> Не передавайте свой ключ другим пользователям',
-          {
-            parse_mode: 'HTML',
-            disable_web_page_preview: true,
-          },
-        );
-        break;
-
       // Обработка шагов добавления сервера
       default:
         // Проверяем, находится ли пользователь в процессе добавления сервера
@@ -628,7 +602,7 @@ bot.on('message', async (msg) => {
           } catch (error) {
             console.error('Error in server dialog:', error);
             await sendBotMessage(
-              '❌ Произошла ошибка при добавлении сервера. Попробуйте снова через команду "➕ Добавить сервер"',
+              '❌ Произошла ошибка при добавлении сервера. Попробуйте снова через команду "⊕ Добавить сервер"',
               adminKeyboard,
             );
             serverDialogs.delete(chatId);
@@ -701,7 +675,9 @@ bot.onText(/\/admin/, async (msg: TelegramBot.Message) =>
   adminHandler({ msg, bot, isAdmin: await isAdmin(msg.chat.id), adminKeyboard }),
 );
 
-bot.onText(/\/addserver/, async (msg) => addServerHandler({ msg, bot, outlineService, VPNConfig }));
+bot.onText(/\/addserver/, async (msg) =>
+  addServerHandler({ msg, bot, outlineService, isAdmin: await isAdmin(msg.chat.id) }),
+);
 
 bot.onText(/\/removeserver/, async (msg) =>
   removeServerHandler({ msg, bot, isAdmin: await isAdmin(msg.chat.id), outlineService }),

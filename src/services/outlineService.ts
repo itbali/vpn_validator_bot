@@ -44,13 +44,13 @@ interface BandwidthData {
 interface KeyMetrics {
   id: string;
   name?: string;
-  password: string;
-  port: number;
-  method: string;
+  password?: string;
+  port?: number;
+  method?: string;
   dataLimit?: {
     bytes: number;
   };
-  bandwidth: {
+  bandwidth?: {
     current: BandwidthData;
     peak: BandwidthData;
   };
@@ -283,7 +283,9 @@ export class OutlineService {
       }
       serverId = config.server_id;
     }
-    return this.makeRequest<KeyMetrics>(serverId, 'GET', `/access-keys/${parseInt(configId)}/metrics`, {}, {});
+    const response = await this.makeRequest<KeyMetrics>(serverId, 'GET', `/metrics/transfer`, {}, {});
+
+    return response;
   }
 
   async generateConfig(userId: string, serverId: number, userName?: string): Promise<VPNConfigInstance> {
