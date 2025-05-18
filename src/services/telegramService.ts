@@ -523,12 +523,14 @@ bot.on('message', async (msg) => {
         });
 
         if (existingConfig) {
-          await sendBotMessage(
-            `<b>🔑 Ваш активный VPN ключ</b>\n\n` +
-              `<b>Скопируйте этот ключ и вставьте в приложение Outline:</b>\n\n` +
-              `<code>${existingConfig.config_data}</code>`,
-            { parse_mode: 'HTML' as TelegramBot.ParseMode },
-          );
+          const server = await VPNServer.findByPk(existingConfig.server_id);
+          let messageText = `<b>🔑 Ваш активный VPN ключ</b>\n\n`;
+          if (server) {
+            messageText += `Сервер: ${server.name} (${server.location})\n`;
+          }
+          messageText += `<code>${existingConfig.config_data}</code>\n\n`;
+          messageText += `<b>Скопируйте этот ключ и вставьте в приложение Outline.</b>`;
+          await sendBotMessage(messageText, { parse_mode: 'HTML' as TelegramBot.ParseMode });
         } else {
           const keyboard = await createServerSelectionKeyboard();
           await sendBotMessage('Выберите сервер для подключения:', keyboard);
@@ -810,13 +812,17 @@ bot.on('message', async (msg) => {
               msg.from?.username || msg.from?.first_name,
             );
 
-            await sendBotMessage(
-              `<b>🔑 Ваш новый ключ создан!</b>\n\n` +
-                `<b>📱 Установите приложение Outline VPN для iOS или Android</b>\n\n` +
-                `<b>⚡️ Скопируйте этот ключ и вставьте в приложение:</b>\n\n` +
-                `<code>${vpnConfig.config_data}</code>`,
-              { parse_mode: 'HTML' as TelegramBot.ParseMode },
-            );
+            if (!vpnConfig || !vpnConfig.config_data) {
+              await sendBotMessage('Не удалось создать VPN ключ. Попробуйте позже.');
+            } else {
+              let messageText = `<b>🔑 Ваш новый VPN ключ</b>\n\n`;
+              messageText += `Сервер: ${server.name} (${server.location})\n`;
+              messageText += `<code>${vpnConfig.config_data}</code>\n\n`;
+              messageText += `<b>Скопируйте этот ключ и вставьте в приложение Outline.</b>`;
+              await sendBotMessage(messageText, { parse_mode: 'HTML' as TelegramBot.ParseMode });
+              await sendBotMessage('Возврат в главное меню...', await mainKeyboard(chatId));
+              return;
+            }
           } catch (error) {
             console.error('Error generating VPN key:', error);
             await sendBotMessage('Произошла ошибка при получении VPN ключа. Попробуйте позже.');

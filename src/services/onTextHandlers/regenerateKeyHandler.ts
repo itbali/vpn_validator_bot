@@ -1,5 +1,6 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { HandlerType } from './handlerType';
+import { VPNServer } from '../../models';
 
 export const regenerateKeyHandler: HandlerType = async ({
   msg,
@@ -40,6 +41,8 @@ export const regenerateKeyHandler: HandlerType = async ({
       return;
     }
 
+    const server = await VPNServer.findByPk(currentConfig.server_id);
+
     const newConfig = await outlineService?.generateConfig(
       chatId.toString(),
       currentConfig.server_id,
@@ -47,9 +50,19 @@ export const regenerateKeyHandler: HandlerType = async ({
     );
     await outlineService?.deactivateConfig(chatId.toString());
 
-    await bot.sendMessage(chatId, `<b>🔑 Ваш новый VPN ключ</b>\n\n` + `<code>${newConfig?.config_data}</code>`, {
-      parse_mode: 'HTML' as TelegramBot.ParseMode,
-    });
+    if (!newConfig) {
+      await bot.sendMessage(chatId, 'Не удалось сгенерировать новый ключ. Попробуйте позже.');
+      return;
+    }
+
+    let messageText = `<b>🔑 Ваш новый VPN ключ</b>\n\n`;
+    if (server) {
+      messageText += `Сервер: ${server.name} (${server.location})\n`;
+    }
+    messageText += `<code>${newConfig.config_data}</code>\n\n`;
+    messageText += `<b>Скопируйте этот ключ и вставьте в приложение Outline.</b>`;
+
+    await bot.sendMessage(chatId, messageText, { parse_mode: 'HTML' as TelegramBot.ParseMode });
   } catch (error) {
     console.error('Error in /regenerate command:', error);
     bot.sendMessage(chatId, 'Ошибка при перевыпуске конфигурации.');
